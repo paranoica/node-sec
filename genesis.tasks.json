@@ -833,7 +833,7 @@
       "id": "T050",
       "title": "Sanctions/PEP/adverse-media screening (fuzzy+phonetic, FP reduction)",
       "sprint": "S5-compliance",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T015"
       ],

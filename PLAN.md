@@ -122,7 +122,7 @@
     - _verify (test):_ cargo test -p graph mule
 
 ## S5-compliance
-- [ ] **T050** Sanctions/PEP/adverse-media screening (fuzzy+phonetic, FP reduction) ← T015
+- [x] **T050** Sanctions/PEP/adverse-media screening (fuzzy+phonetic, FP reduction) ← T015
     - _accept:_ WHEN an entity name matches a watchlist by fuzzy/phonetic score above threshold AND a secondary identifier (DOB/nationality/ID) corroborates THEN a screening alert SHALL be raised
     - _accept:_ WHEN a watchlist delta is ingested THEN the existing customer base SHALL be rescreened in batch and new true matches SHALL alert
     - _verify (test):_ cargo test -p compliance screening
