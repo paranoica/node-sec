@@ -9,3 +9,5 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+domain = { path = "../domain" }
+time = { workspace = true }

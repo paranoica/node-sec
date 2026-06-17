@@ -136,6 +136,10 @@ dependencies = [
 [[package]]
 name = "simulator"
 version = "0.1.0"
+dependencies = [
+ "domain",
+ "time",
+]
 
 [[package]]
 name = "stream"
