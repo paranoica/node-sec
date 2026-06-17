@@ -1,0 +1,20 @@
+# Prometheus scrape config (T003). The decision engine and stream processor expose /metrics
+# (added in later tasks; D-017 observability). Redpanda exposes metrics on :9644.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: redpanda
+    metrics_path: /public_metrics
+    static_configs:
+      - targets: ["redpanda:9644"]
+
+  # Placeholder for node-sec services (engine, stream) — they register once they expose /metrics.
+  - job_name: node-sec
+    static_configs:
+      - targets: []
