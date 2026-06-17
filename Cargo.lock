@@ -351,6 +351,7 @@ version = "0.1.0"
 dependencies = [
  "domain",
  "features",
+ "model",
  "prost",
  "rules",
  "stream",
