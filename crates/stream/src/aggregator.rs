@@ -41,11 +41,11 @@ pub fn entity_keys(txn: &Transaction) -> Vec<String> {
 /// Per-entity windowed aggregation. Each entity's state is independent — events for one key are
 /// computed within that key's partition (`arch:partition-by-entity`).
 ///
-/// # Limitation (v0)
-/// `by_entity` keeps every entity ever seen in process — **unbounded** for an open entity space. Each
-/// entity's event deque self-bounds to the largest window, but the key set only grows. A
-/// production async path bounds this (active-set eviction, or backing the working state in Redis);
-/// the per-window read is also O(events) and would become incremental counters there.
+/// # Bounding
+/// `by_entity` is capped at [`MAX_ENTITIES`] with arbitrary eviction, so an open entity space cannot
+/// exhaust memory (each entity's event deque already self-bounds to the largest window). A
+/// production async path uses recency/TTL eviction or backs the working state in Redis; the
+/// per-window read is also O(events) and would become incremental counters there.
 /// Hard cap on tracked entities, bounding memory for an open entity space (the key set would
 /// otherwise grow without limit under a high-cardinality flood → OOM). Eviction is arbitrary —
 /// graceful degradation over a crash; recency/TTL eviction arrives with the Redis-backed store.

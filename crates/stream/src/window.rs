@@ -17,6 +17,11 @@ pub const WINDOWS: [(&str, i64); 6] = [
 ];
 
 /// Count, summed amount, and summed squared amount over one window.
+///
+/// All fields are required on deserialize (no `serde(default)`): a stored value missing a field is a
+/// **schema mismatch**, and reading it must fail (→ fail-safe degrade, then recompute on the
+/// entity's next event) rather than silently default the field to 0, which would feed the rules and
+/// the model a wrong variance / device-spread / decline-rate with no signal.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WindowStat {
     /// Window label (e.g. `5m`).
@@ -28,13 +33,10 @@ pub struct WindowStat {
     /// Summed squared amount (minor units) — feeds variance / z-score. `i128` because a squared
     /// i64 amount overflows i64, and the running sum over a window would silently saturate and
     /// corrupt every variance/z-score that feeds the rules and the model.
-    #[serde(default)]
     pub sum_sq: i128,
     /// Distinct devices seen on this entity in the window (feeds `distinct_devices_24h`).
-    #[serde(default)]
     pub distinct_devices: u64,
     /// Declined events in the window (feeds `decline_rate_1h` together with `count`).
-    #[serde(default)]
     pub decline_count: u64,
 }
 
@@ -192,6 +194,30 @@ mod tests {
         assert!(
             expected > i128::from(i64::MAX),
             "test must exceed i64 range"
+        );
+    }
+
+    #[test]
+    fn deserialising_a_schema_mismatch_fails_rather_than_defaulting() {
+        // An old-schema value missing `sum_sq` must error on read (→ fail-safe degrade + recompute),
+        // not silently deserialize with sum_sq = 0 and corrupt the variance.
+        let old = r#"{"windows":[{"label":"5m","count":3,"sum_minor":600}]}"#;
+        assert!(serde_json::from_str::<WindowAggregates>(old).is_err());
+        // A complete current value still round-trips.
+        let current = WindowAggregates {
+            windows: vec![WindowStat {
+                label: "5m".to_string(),
+                count: 3,
+                sum_minor: 600,
+                sum_sq: 120_000,
+                distinct_devices: 1,
+                decline_count: 0,
+            }],
+        };
+        let json = serde_json::to_string(&current).unwrap();
+        assert_eq!(
+            serde_json::from_str::<WindowAggregates>(&json).unwrap(),
+            current
         );
     }
 
