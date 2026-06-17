@@ -18,6 +18,9 @@ tokio-stream = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+[dev-dependencies]
+time = { workspace = true }
+
 [[bin]]
 name = "analyst-api"
 path = "src/main.rs"
