@@ -6,10 +6,16 @@
 //! pack, so the engine stays vertical-agnostic and the pack plugs in.
 //!
 //! - [`app_fraud`] — Authorised-Push-Payment signals: new-payee + Confirmation of Payee (T060).
+//! - [`coercion`] — coercion/behavioural signals, holds, and recipient-side mule freeze (T061).
 #![forbid(unsafe_code)]
 
 pub mod app_fraud;
+pub mod coercion;
 
 pub use app_fraud::{
     evaluate_app_fraud, P2pConfig, P2pPayment, P2pSignal, PayerHistory, PeerContext,
+};
+pub use coercion::{
+    evaluate_coercion, evaluate_recipient, BehaviorSignals, CoercionConfig, CoercionSignal,
+    RecipientOutcome,
 };
