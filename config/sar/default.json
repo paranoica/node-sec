@@ -1,0 +1,5 @@
+{
+  "filing_window_days": 30,
+  "continuing_activity_days": 90,
+  "ctr_threshold_minor": 1000000
+}

@@ -7,6 +7,7 @@
 pub mod aml;
 pub mod audit;
 pub mod cases;
+pub mod sar;
 pub mod screening;
 
 pub use aml::{evaluate as evaluate_aml, AmlAlert, AmlConfig, AmlTransaction, Direction};
@@ -14,6 +15,10 @@ pub use audit::{
     AuditError, AuditRecord, AuditSink, InMemoryAuditSink, PostgresAuditSink, ReproducedDecision,
 };
 pub use cases::{Case, CaseError, CaseState, ReviewQueue};
+pub use sar::{
+    generate_sar, maybe_ctr, CurrencyTransactionReport, SarConfig, SarInput,
+    SuspiciousActivityReport,
+};
 pub use screening::{
     rescreen_on_delta, screen, ListKind, ScreeningAlert, ScreeningConfig, Subject, WatchlistEntry,
 };
