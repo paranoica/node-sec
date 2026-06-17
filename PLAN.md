@@ -49,7 +49,7 @@
     - _accept:_ WHEN a decision is emitted THEN exactly one immutable audit record SHALL be written via the async path containing inputs, feature snapshot, rule/model versions, score, and reason codes
     - _accept:_ WHEN an audit record is replayed THEN the engine SHALL reproduce the identical decision
     - _verify (test):_ cargo test -p compliance audit_replay
-- [ ] **T016** Hot-path latency harness (rules-only p99) ← T014, T015
+- [x] **T016** Hot-path latency harness (rules-only p99) ← T014, T015
     - _accept:_ WHEN the rules-only decision path is load-tested THEN p50/p99/p999 latency and sustained throughput SHALL be measured and reported
     - _verify (test):_ cargo bench -p engine latency
 

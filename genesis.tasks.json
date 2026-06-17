@@ -321,7 +321,7 @@
       "id": "T016",
       "title": "Hot-path latency harness (rules-only p99)",
       "sprint": "S1-card-slice",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T014",
         "T015"
