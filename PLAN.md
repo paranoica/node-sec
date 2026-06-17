@@ -18,7 +18,7 @@
     - _accept:_ WHEN the generator runs at a configured rate R THEN it SHALL publish schema-valid transaction events to the event backbone at approximately R per second
     - _accept:_ WHERE an entity population size is configured THEN generated transactions SHALL reuse cards/accounts/devices from that population so velocity features are meaningful
     - _verify (test):_ cargo test -p simulator
-- [ ] **T005** Wire up CI (build + test + lint, polyglot) ← T001
+- [x] **T005** Wire up CI (build + test + lint, polyglot) ← T001
     - _accept:_ WHEN a push or pull request lands THEN CI SHALL build and test the Rust workspace and run the Python lint/test for the ml/ tree
     - _verify (manual):_ gh workflow run ci.yml
 

@@ -119,7 +119,7 @@
       "id": "T005",
       "title": "Wire up CI (build + test + lint, polyglot)",
       "sprint": "S0-foundation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T001"
       ],
