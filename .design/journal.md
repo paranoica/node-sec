@@ -84,4 +84,29 @@ Gate: verify.mjs MEASURED_PASS 20/0 (axe 0 serious, no 320 overflow, CLS 0.000, 
 forced dark ×{320,768,1280}) + independent **Tier-A** critic (fresh-context subagent) → **SHIP**,
 blocking_fails []. Token conformance confirmed in built CSS; no anti-slop TIER-1 tells.
 
-## Simulation control dashboard — pending (next, also Next.js)
+### v3 — analyst workbench: disposition + four-eyes + notes + filters — 2026-06-18
+Owner caught the real gap: the console was a **viewer, not a workbench** ("я зашёл, посмотрел — и чо
+дальше?"). A fraud analyst doesn't admire a case, they *resolve* it. Added the act-side:
+- **Disposition / action layer** (sticky bar in the detail): `Assign to me` · `Confirm fraud` ·
+  `Clear (false positive)` · `Escalate` · `Block card` (card subjects only). Each drives a case
+  status: `alert/triage/investigate → in review → confirmed fraud / cleared / escalated`.
+- **Four-eyes (maker-checker)** on the high-impact actions: `Confirm fraud` and `File SAR` submit to
+  a `Pending four-eyes` state; a **different** analyst must `Approve as reviewer` (caption states the
+  server rejects self-approval). Mirrors the bedrock compliance invariant (`crates/compliance/{cases,
+  sar,audit}`). Disposition + pending banners stack (fraud confirmed *and* SAR awaiting a reviewer).
+- **Notes → immutable audit**: system + analyst notes with an add-note input; every action also drops
+  a system note. Closed-case rows desaturate their risk meter so the spine still reads open-vs-closed.
+- **Queue filters**: segmented `All / Mine / Open / Closed` + free-text search (subject / case-id) +
+  alert-type dropdown. The "open cases" stat counts un-disposed cases.
+- **Custom dropdown** — replaced the native `<select>` (its open option list is OS-drawn and
+  unstylable) with an own listbox component (outside-click / Escape close, arrow-key nav, amber
+  selected + check). Owner caught that the native popup leaked default chrome; the Tier-A critic had
+  missed it (it only inspected the closed control) — logged as a critic-miss.
+- **Evidence mock fixed** — `kind` and `detail` were paired at random ("VELOCITY → OFAC SDN", dupes);
+  now each evidence fact is a coherent `{kind, detail}` pair.
+
+Gate: verify.mjs MEASURED_PASS 20/0 (axe 0 serious, no 320 overflow, CLS 0.000, LCP ≤808ms) +
+Tier-A critic → SHIP (caveat: critic passed the dropdown that the owner then rejected — fixed after).
+Interaction flows (four-eyes pending→approve, SAR, notes, filters, custom dropdown) driven + screenshotted.
+
+## Simulation control dashboard — pending (next, also Next.js) — BOTH hooks: SLA-wall (hero) + live-pipeline (section)
