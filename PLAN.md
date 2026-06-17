@@ -93,7 +93,7 @@
     - _accept:_ WHEN a fraudulent transaction is approved THEN a chargeback label SHALL arrive after a configurable simulated delay
     - _accept:_ WHEN traffic is sampled into the random control holdout THEN those transactions SHALL be scored but not acted upon, yielding unbiased labels
     - _verify (test):_ cargo test -p simulator labels
-- [ ] **T035** Evaluation harness (PR-AUC, recall@FPR, precision@N, alert-to-fraud) ← T034
+- [x] **T035** Evaluation harness (PR-AUC, recall@FPR, precision@N, alert-to-fraud) ← T034
     - _accept:_ WHEN a model is evaluated on labelled simulation data THEN PR-AUC, recall at a fixed FPR, precision at N, and the alert-to-fraud ratio SHALL be reported
     - _accept:_ WHERE a metrics report is produced THEN accuracy SHALL NOT appear as a headline metric
     - _verify (test):_ pytest ml/tests/test_eval.py

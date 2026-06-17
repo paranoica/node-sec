@@ -641,7 +641,7 @@
       "id": "T035",
       "title": "Evaluation harness (PR-AUC, recall@FPR, precision@N, alert-to-fraud)",
       "sprint": "S3-ml-scoring",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T034"
       ],
