@@ -178,6 +178,49 @@ fn e2e_decision_to_compliance_to_audit() {
 }
 
 #[test]
+fn e2e_compliance_cases_feed_the_analyst_queue() {
+    let pipeline =
+        CompliancePipeline::new(InMemoryAuditSink::default(), vec![sdn("Vladimir Petrov")]);
+    let decider = blocklisting_decider();
+
+    // A high-risk sanctioned decision and a lower-risk AML structuring decision both open cases.
+    let r = request("400100", 5_000);
+    let resp = decider.decide(&r);
+    pipeline
+        .process(ComplianceInput {
+            audit_record: to_audit_record(&r, &resp),
+            subject: Some(subject("Vladimir Petrov")),
+            aml_window: vec![],
+            subject_id: "acct-sanctioned".to_string(),
+            risk: 0.95,
+        })
+        .unwrap();
+    let r = request("400100", 950_000);
+    let resp = decider.decide(&r);
+    pipeline
+        .process(ComplianceInput {
+            audit_record: to_audit_record(&r, &resp),
+            subject: None,
+            aml_window: structuring_window(),
+            subject_id: "acct-aml".to_string(),
+            risk: 0.6,
+        })
+        .unwrap();
+
+    // The analyst dashboard reads the live open cases, risk-ordered, with their alert summaries.
+    let views: Vec<_> = pipeline
+        .open_cases()
+        .iter()
+        .map(api::analyst::case_view)
+        .collect();
+    assert_eq!(views.len(), 2);
+    assert!(views[0].risk >= views[1].risk, "queue must be risk-ordered");
+    assert_eq!(views[0].subject, "acct-sanctioned");
+    assert!(views[0].alerts.iter().any(|a| a.starts_with("sanctions:")));
+    assert!(views[1].alerts.iter().any(|a| a.starts_with("aml:")));
+}
+
+#[test]
 #[ignore = "requires a running Postgres (scripts/integration-test.sh); run with --ignored + NODESEC_PG"]
 fn e2e_persists_audit_to_live_postgres() {
     let conn = std::env::var("NODESEC_PG").unwrap_or_else(|_| {

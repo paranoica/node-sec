@@ -6,13 +6,24 @@
 //! the account's window, and (4) opens a risk-prioritised case on any alert. It runs off the hot
 //! path, so a blocking audit sink is fine.
 
+use std::cmp::Ordering as CmpOrdering;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use crate::aml::{evaluate as evaluate_aml, AmlAlert, AmlConfig, AmlTransaction};
 use crate::audit::{AuditError, AuditRecord, AuditSink};
-use crate::cases::{Case, ReviewQueue};
+use crate::cases::Case;
 use crate::screening::{screen, ScreeningAlert, ScreeningConfig, Subject, WatchlistEntry};
+
+/// A case in the review queue together with the alert summaries that opened it — the unit the
+/// analyst dashboard renders.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenCase {
+    /// The case.
+    pub case: Case,
+    /// Short alert summaries (e.g. `sanctions:Vladimir Petrov`, `aml:structuring`).
+    pub alerts: Vec<String>,
+}
 
 /// One transaction's worth of work for the compliance pipeline.
 #[derive(Debug, Clone)]
@@ -48,13 +59,14 @@ impl ComplianceOutcome {
     }
 }
 
-/// The compliance pipeline over an audit sink. Holds the watchlist, configs, and the review queue.
+/// The compliance pipeline over an audit sink. Holds the watchlist, configs, and the review queue
+/// (risk-prioritised open cases the analyst dashboard reads).
 pub struct CompliancePipeline<A: AuditSink> {
     audit: A,
     watchlist: Vec<WatchlistEntry>,
     screening: ScreeningConfig,
     aml: AmlConfig,
-    queue: Mutex<ReviewQueue>,
+    cases: Mutex<Vec<OpenCase>>,
     next_case: AtomicU64,
 }
 
@@ -67,7 +79,7 @@ impl<A: AuditSink> CompliancePipeline<A> {
             watchlist,
             screening: ScreeningConfig::default(),
             aml: AmlConfig::default(),
-            queue: Mutex::new(ReviewQueue::new()),
+            cases: Mutex::new(Vec::new()),
             next_case: AtomicU64::new(1),
         }
     }
@@ -95,10 +107,24 @@ impl<A: AuditSink> CompliancePipeline<A> {
         let case = if !screening_alerts.is_empty() || !aml_alerts.is_empty() {
             let id = self.next_case.fetch_add(1, Ordering::Relaxed);
             let case = Case::new(format!("case-{id}"), input.subject_id, input.risk);
-            self.queue
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .enqueue(case.clone());
+            let mut alerts: Vec<String> = screening_alerts
+                .iter()
+                .map(|a| format!("sanctions:{}", a.matched_name))
+                .collect();
+            alerts.extend(aml_alerts.iter().map(|a| format!("aml:{}", a.typology)));
+
+            let mut cases = self.cases.lock().unwrap_or_else(|e| e.into_inner());
+            cases.push(OpenCase {
+                case: case.clone(),
+                alerts,
+            });
+            // Keep the queue risk-prioritised (highest first) so the dashboard and reviewer agree.
+            cases.sort_by(|a, b| {
+                b.case
+                    .risk
+                    .partial_cmp(&a.case.risk)
+                    .unwrap_or(CmpOrdering::Equal)
+            });
             Some(case)
         } else {
             None
@@ -111,15 +137,26 @@ impl<A: AuditSink> CompliancePipeline<A> {
         })
     }
 
-    /// Take the highest-risk pending case from the review queue, if any.
+    /// Take the highest-risk pending case off the review queue, if any.
     pub fn next_case_for_review(&self) -> Option<Case> {
-        self.queue.lock().unwrap_or_else(|e| e.into_inner()).pop()
+        let mut cases = self.cases.lock().unwrap_or_else(|e| e.into_inner());
+        if cases.is_empty() {
+            None
+        } else {
+            Some(cases.remove(0).case) // sorted highest-risk first
+        }
+    }
+
+    /// A non-draining, risk-ordered snapshot of the open cases (what the analyst dashboard reads).
+    #[must_use]
+    pub fn open_cases(&self) -> Vec<OpenCase> {
+        self.cases.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Number of cases waiting in the review queue.
     #[must_use]
     pub fn pending_cases(&self) -> usize {
-        self.queue.lock().unwrap_or_else(|e| e.into_inner()).len()
+        self.cases.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Borrow the audit sink (e.g. to read back records in tests/replay).

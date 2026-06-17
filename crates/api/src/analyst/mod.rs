@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use axum::{extract::State, routing::get, Json, Router};
-use compliance::{Case, CaseState};
+use compliance::{Case, CaseState, OpenCase};
 use serde::Serialize;
 
 /// A piece of evidence attached to a case.
@@ -117,6 +117,39 @@ pub fn router(snapshot: Vec<CaseView>) -> Router {
 
 async fn queue(State(snapshot): State<Snapshot>) -> Json<Vec<CaseView>> {
     Json((*snapshot).clone())
+}
+
+/// Map a live compliance open case (a case + the alert summaries that opened it) to the analyst
+/// view. Evidence / reason-codes / graph-links are filled by enrichment lookups; from the pipeline
+/// alone we surface the case and its alerts.
+#[must_use]
+pub fn case_view(open: &OpenCase) -> CaseView {
+    CaseView {
+        case_id: open.case.id.clone(),
+        subject: open.case.subject.clone(),
+        risk: open.case.risk,
+        state: state_str(open.case.state).to_string(),
+        alerts: open.alerts.clone(),
+        evidence: vec![],
+        reason_codes: vec![],
+        graph_links: vec![],
+    }
+}
+
+/// A provider that yields the current risk-ordered queue snapshot, called per request so the
+/// dashboard always reflects the live compliance pipeline.
+pub type CaseProvider = Arc<dyn Fn() -> Vec<CaseView> + Send + Sync>;
+
+/// Build the analyst read-API router over a **live** case provider (e.g. the compliance pipeline's
+/// open cases) instead of a static snapshot.
+pub fn router_live(provider: CaseProvider) -> Router {
+    Router::new()
+        .route("/queue", get(queue_live))
+        .with_state(provider)
+}
+
+async fn queue_live(State(provider): State<CaseProvider>) -> Json<Vec<CaseView>> {
+    Json(provider())
 }
 
 /// A small demo snapshot for `curl`-ing the endpoint locally.
