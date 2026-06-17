@@ -463,7 +463,7 @@
       "id": "T024",
       "title": "Fail-safe degradation (feature-store timeout → rules-only)",
       "sprint": "S2-feature-store",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T021"
       ],

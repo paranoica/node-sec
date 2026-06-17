@@ -69,7 +69,7 @@
     - _accept:_ WHEN the offline store materialises a feature for training THEN the join SHALL use only values as-of the event timestamp
     - _accept:_ WHEN the same event is scored online and offline THEN the two feature vectors SHALL match within tolerance
     - _verify (test):_ pytest ml/tests/test_parity.py
-- [ ] **T024** Fail-safe degradation (feature-store timeout → rules-only) ← T021
+- [x] **T024** Fail-safe degradation (feature-store timeout → rules-only) ← T021
     - _accept:_ WHEN the online feature store exceeds its per-call timeout THEN the hot path SHALL fall back to rules-only and SHALL still return a decision within the latency SLA
     - _verify (test):_ cargo test -p engine failsafe
 
