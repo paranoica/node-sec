@@ -165,11 +165,13 @@ impl PostgresAuditSink {
 
 impl AuditSink for PostgresAuditSink {
     fn write(&self, record: &AuditRecord) -> Result<(), AuditError> {
-        let payload = serde_json::to_string(record)?;
+        // Bind the payload as a `serde_json::Value` so it maps to the `jsonb` column natively; a
+        // bound `String` is `text` and the driver rejects it against `jsonb` (WrongType).
+        let payload = serde_json::to_value(record)?;
         self.client.lock().expect("audit sink poisoned").execute(
             "INSERT INTO audit_log \
              (transaction_id, decided_at_unix_ms, action, score, rule_version, model_version, payload) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
             &[
                 &record.transaction_id,
                 &record.decided_at_unix_ms,
