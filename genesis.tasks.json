@@ -905,7 +905,7 @@
       "id": "T052",
       "title": "Case lifecycle state machine + review queue + four-eyes",
       "sprint": "S5-compliance",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T050",
         "T051"

@@ -131,7 +131,7 @@
     - _accept:_ WHEN credits arrive from many geographies and debits concentrate to few destinations THEN a funnel-account alert SHALL be raised
     - _accept:_ WHEN an outbound transfer is matched by an inbound of near-equal size within the round-trip window THEN a round-tripping alert SHALL be raised
     - _verify (test):_ cargo test -p compliance aml
-- [ ] **T052** Case lifecycle state machine + review queue + four-eyes ← T050, T051
+- [x] **T052** Case lifecycle state machine + review queue + four-eyes ← T050, T051
     - _accept:_ WHEN an alert is created THEN it SHALL enter the case lifecycle (alert → triage → investigate → close/escalate/file-sar) with risk-prioritised ordering in the review queue
     - _accept:_ WHEN a SAR is approved or filed THEN the checker SHALL be a different analyst from the maker
     - _verify (test):_ cargo test -p compliance cases
