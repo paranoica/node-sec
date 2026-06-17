@@ -13,6 +13,7 @@ domain = { path = "../domain" }
 stream = { path = "../stream" }
 tokio = { workspace = true, features = ["time"] }
 time = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

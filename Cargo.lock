@@ -369,6 +369,7 @@ name = "features"
 version = "0.1.0"
 dependencies = [
  "domain",
+ "serde",
  "serde_json",
  "stream",
  "time",
@@ -500,6 +501,7 @@ name = "graph"
 version = "0.1.0"
 dependencies = [
  "petgraph 0.6.5",
+ "time",
 ]
 
 [[package]]
