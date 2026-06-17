@@ -20,6 +20,8 @@ use crate::velocity::VelocityTracker;
 pub enum Disposition {
     /// Force a decline regardless of any score.
     HardDecline,
+    /// A soft signal that feeds the score; does not by itself decline.
+    Soft,
 }
 
 /// A single rule firing.
@@ -149,8 +151,27 @@ impl RulesEngine {
             }
         }
 
-        // Velocity rules: record this attempt and append any burst/enumeration hits.
-        hits.extend(self.velocity.observe(txn, &config.velocity));
+        // High-risk MCC (soft signal).
+        if let Some(mcc) = txn.mcc {
+            if config.mcc_risk.contains(&mcc) {
+                hits.push(soft_hit("mcc.high_risk", "MCC_HIGH_RISK", "high-risk-mcc"));
+            }
+        }
+        // AVS / CVV mismatch (soft signals for CNP fraud).
+        if txn.avs_match == Some(false) {
+            hits.push(soft_hit("avs.mismatch", "AVS_MISMATCH", "cnp"));
+        }
+        if txn.cvv_match == Some(false) {
+            hits.push(soft_hit("cvv.mismatch", "CVV_MISMATCH", "cnp"));
+        }
+
+        // Stateful card rules: velocity bursts, impossible travel, amount anomaly.
+        hits.extend(self.velocity.observe(
+            txn,
+            &config.velocity,
+            &config.impossible_travel,
+            &config.amount_anomaly,
+        ));
 
         Evaluation { hits }
     }
@@ -168,6 +189,15 @@ fn blocklist_hit(rule_id: &str, reason_code: &str) -> RuleHit {
         reason_code: ReasonCode::new(reason_code),
         typology: "blocklist".to_string(),
         disposition: Disposition::HardDecline,
+    }
+}
+
+fn soft_hit(rule_id: &str, reason_code: &str, typology: &str) -> RuleHit {
+    RuleHit {
+        rule_id: rule_id.to_string(),
+        reason_code: ReasonCode::new(reason_code),
+        typology: typology.to_string(),
+        disposition: Disposition::Soft,
     }
 }
 
@@ -274,5 +304,34 @@ mod tests {
         assert!(engine.reload().is_err());
         assert_eq!(engine.version(), "v1");
         assert!(engine.evaluate(&card_txn()).is_hard_decline());
+    }
+
+    #[test]
+    fn high_risk_mcc_emits_soft_signal() {
+        let engine = RulesEngine::from_config(RulesConfig {
+            version: "t".to_string(),
+            mcc_risk: crate::config::MccRisk {
+                high_risk: vec![7995],
+            },
+            ..Default::default()
+        });
+        let eval = engine.evaluate(&card_txn().with_mcc(7995));
+        assert!(!eval.is_hard_decline());
+        assert!(eval.hits.iter().any(|h| {
+            h.reason_code.as_str() == "MCC_HIGH_RISK" && h.disposition == Disposition::Soft
+        }));
+    }
+
+    #[test]
+    fn avs_and_cvv_mismatch_emit_soft_signals() {
+        let engine = RulesEngine::from_config(config_with(Blocklists::default()));
+        let eval = engine.evaluate(&card_txn().with_card_checks(false, false));
+        let codes: Vec<&str> = eval.hits.iter().map(|h| h.reason_code.as_str()).collect();
+        assert!(codes.contains(&"AVS_MISMATCH"));
+        assert!(codes.contains(&"CVV_MISMATCH"));
+        assert!(
+            !eval.is_hard_decline(),
+            "soft signals must not force a decline"
+        );
     }
 }

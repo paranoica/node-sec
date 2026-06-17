@@ -18,6 +18,59 @@ pub struct RulesConfig {
     /// Velocity rule thresholds.
     #[serde(default)]
     pub velocity: VelocityConfig,
+    /// Impossible-travel threshold.
+    #[serde(default)]
+    pub impossible_travel: ImpossibleTravel,
+    /// Amount-anomaly threshold.
+    #[serde(default)]
+    pub amount_anomaly: AmountAnomaly,
+    /// MCC risk list.
+    #[serde(default)]
+    pub mcc_risk: MccRisk,
+}
+
+/// Impossible-travel threshold: two transactions for one card whose implied travel speed exceeds
+/// this is physically impossible.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ImpossibleTravel {
+    /// Maximum plausible travel speed in km/h (above this → impossible travel).
+    pub max_speed_kmh: f64,
+}
+
+impl Default for ImpossibleTravel {
+    fn default() -> Self {
+        Self {
+            max_speed_kmh: 1000.0,
+        }
+    }
+}
+
+/// Amount-anomaly threshold relative to a card's running average ticket.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct AmountAnomaly {
+    /// Fire when the amount exceeds `factor` times the card's running mean.
+    pub factor: f64,
+    /// Require at least this many prior samples before the rule can fire.
+    pub min_samples: u64,
+}
+
+impl Default for AmountAnomaly {
+    fn default() -> Self {
+        Self {
+            factor: 10.0,
+            min_samples: 5,
+        }
+    }
+}
+
+/// High-risk Merchant Category Codes.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+pub struct MccRisk {
+    /// MCCs treated as elevated risk (e.g. gambling, money transfer, crypto).
+    pub high_risk: Vec<u32>,
 }
 
 /// Velocity rule thresholds (card-testing, BIN-attack, decline-retry storm).
@@ -134,6 +187,12 @@ pub struct CompiledConfig {
     pub counterparties: HashSet<String>,
     /// Velocity thresholds (numbers, no compilation needed).
     pub velocity: VelocityConfig,
+    /// Impossible-travel threshold.
+    pub impossible_travel: ImpossibleTravel,
+    /// Amount-anomaly threshold.
+    pub amount_anomaly: AmountAnomaly,
+    /// High-risk MCCs, compiled to a set.
+    pub mcc_risk: HashSet<u32>,
 }
 
 impl From<RulesConfig> for CompiledConfig {
@@ -147,6 +206,9 @@ impl From<RulesConfig> for CompiledConfig {
             merchants: c.blocklists.merchants.into_iter().collect(),
             counterparties: c.blocklists.counterparties.into_iter().collect(),
             velocity: c.velocity,
+            impossible_travel: c.impossible_travel,
+            amount_anomaly: c.amount_anomaly,
+            mcc_risk: c.mcc_risk.high_risk.into_iter().collect(),
         }
     }
 }

@@ -8,10 +8,10 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Mutex;
 
-use domain::{ReasonCode, Transaction};
+use domain::{Geo, ReasonCode, Transaction};
 use time::{Duration, OffsetDateTime};
 
-use crate::config::VelocityConfig;
+use crate::config::{AmountAnomaly, ImpossibleTravel, VelocityConfig};
 use crate::engine::{Disposition, RuleHit};
 
 /// Per-entity sliding-window counters feeding the velocity rules.
@@ -28,6 +28,10 @@ struct Windows {
     bin_pans: HashMap<String, VecDeque<(OffsetDateTime, String)>>,
     /// card token → timestamps of declines (retry storm).
     card_declines: HashMap<String, VecDeque<OffsetDateTime>>,
+    /// card token → last seen (geo, time) for impossible travel.
+    card_last_location: HashMap<String, (Geo, OffsetDateTime)>,
+    /// card token → (sample count, running mean minor-unit amount) for amount anomaly.
+    card_amount_stats: HashMap<String, (u64, f64)>,
 }
 
 fn evict_ts(dq: &mut VecDeque<OffsetDateTime>, now: OffsetDateTime, window_secs: i64) {
@@ -54,7 +58,13 @@ impl VelocityTracker {
     /// Record this attempt and return any velocity hits it triggers: card-testing (low-value auth
     /// burst per device), BIN-attack (distinct PANs per BIN), and decline-retry (the card is already
     /// in a decline storm from prior [`VelocityTracker::record_decline`] feedback).
-    pub fn observe(&self, txn: &Transaction, cfg: &VelocityConfig) -> Vec<RuleHit> {
+    pub fn observe(
+        &self,
+        txn: &Transaction,
+        cfg: &VelocityConfig,
+        travel: &ImpossibleTravel,
+        amount: &AmountAnomaly,
+    ) -> Vec<RuleHit> {
         let now = txn.occurred_at;
         let mut state = self.state.lock().expect("velocity state poisoned");
         let mut hits = Vec::new();
@@ -110,6 +120,39 @@ impl VelocityTracker {
             }
         }
 
+        // Impossible travel: implied speed since the card's last known location.
+        if let (Some(pan), Some(geo)) = (&txn.pan, &txn.geo) {
+            let token = pan.redacted();
+            if let Some((last_geo, last_time)) = state.card_last_location.get(&token) {
+                let hours = (now - *last_time).as_seconds_f64() / 3600.0;
+                if hours > 0.0 && last_geo.distance_km(geo) / hours > travel.max_speed_kmh {
+                    hits.push(hit(
+                        "rule.impossible_travel",
+                        "IMPOSSIBLE_TRAVEL",
+                        "impossible-travel",
+                    ));
+                }
+            }
+            state.card_last_location.insert(token, (geo.clone(), now));
+        }
+
+        // Amount anomaly: amount far above the card's running mean ticket size.
+        if let Some(pan) = &txn.pan {
+            let token = pan.redacted();
+            let value = txn.amount.minor_units() as f64;
+            let entry = state.card_amount_stats.entry(token).or_insert((0, 0.0));
+            let (count, mean) = *entry;
+            if count >= amount.min_samples && value > mean * amount.factor {
+                hits.push(soft(
+                    "rule.amount_anomaly",
+                    "AMOUNT_ANOMALY",
+                    "amount-anomaly",
+                ));
+            }
+            let new_count = count + 1;
+            *entry = (new_count, mean + (value - mean) / new_count as f64);
+        }
+
         hits
     }
 
@@ -133,17 +176,26 @@ fn hit(rule_id: &str, reason_code: &str, typology: &str) -> RuleHit {
     }
 }
 
+fn soft(rule_id: &str, reason_code: &str, typology: &str) -> RuleHit {
+    RuleHit {
+        rule_id: rule_id.to_string(),
+        reason_code: ReasonCode::new(reason_code),
+        typology: typology.to_string(),
+        disposition: Disposition::Soft,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::{Channel, Currency, DeviceId, Money, Pan, TransactionId, Vertical};
+    use domain::{Channel, Currency, DeviceId, Geo, Money, Pan, TransactionId, Vertical};
     use time::macros::datetime;
     use time::Duration as TDuration;
 
-    fn low_value_card_txn(pan: &str, device: &str, at: OffsetDateTime) -> Transaction {
+    fn card_txn(pan: &str, device: &str, at: OffsetDateTime, amount_minor: i64) -> Transaction {
         Transaction::new(
             TransactionId::new("t"),
-            Money::from_minor_units(100, Currency::Usd),
+            Money::from_minor_units(amount_minor, Currency::Usd),
             at,
             Vertical::Card,
             Channel::CardNotPresent,
@@ -152,91 +204,140 @@ mod tests {
         .with_device(DeviceId::new(device))
     }
 
+    fn obs(tracker: &VelocityTracker, txn: &Transaction) -> Vec<RuleHit> {
+        tracker.observe(
+            txn,
+            &VelocityConfig::default(),
+            &ImpossibleTravel::default(),
+            &AmountAnomaly::default(),
+        )
+    }
+
+    fn fired(hits: &[RuleHit], reason: &str) -> bool {
+        hits.iter().any(|h| h.reason_code.as_str() == reason)
+    }
+
     #[test]
     fn card_testing_fires_after_the_burst_threshold() {
-        let cfg = VelocityConfig::default(); // max_low_value_auths = 5
         let tracker = VelocityTracker::new();
         let start = datetime!(2026-06-17 00:00 UTC);
-        let mut fired = false;
+        let mut saw = false;
         for i in 0..7 {
-            let txn =
-                low_value_card_txn("4111110000001234", "dev-1", start + TDuration::seconds(i));
-            if !tracker.observe(&txn, &cfg).is_empty() {
-                fired = true;
+            let txn = card_txn(
+                "4111110000001234",
+                "dev-1",
+                start + TDuration::seconds(i),
+                100,
+            );
+            if fired(&obs(&tracker, &txn), "VELOCITY_CARD_TESTING") {
+                saw = true;
             }
         }
         assert!(
-            fired,
+            saw,
             "card-testing must fire once the device exceeds the low-value burst threshold"
         );
     }
 
     #[test]
     fn bin_attack_fires_on_many_distinct_pans_one_bin() {
-        let cfg = VelocityConfig::default(); // max_distinct_pans = 10
         let tracker = VelocityTracker::new();
         let start = datetime!(2026-06-17 00:00 UTC);
-        let mut fired = false;
+        let mut saw = false;
         for i in 0..12u64 {
             // Same BIN 411111, distinct tails → distinct card tokens.
             let pan = format!("411111{i:010}");
-            let txn = low_value_card_txn(&pan, "dev-x", start + TDuration::seconds(i as i64));
-            if tracker
-                .observe(&txn, &cfg)
-                .iter()
-                .any(|h| h.reason_code.as_str() == "VELOCITY_BIN_ATTACK")
-            {
-                fired = true;
+            let txn = card_txn(&pan, "dev-x", start + TDuration::seconds(i as i64), 100);
+            if fired(&obs(&tracker, &txn), "VELOCITY_BIN_ATTACK") {
+                saw = true;
             }
         }
         assert!(
-            fired,
+            saw,
             "BIN-attack must fire once distinct PANs per BIN exceed the threshold"
         );
     }
 
     #[test]
     fn decline_retry_fires_only_after_recorded_declines() {
-        let cfg = VelocityConfig::default(); // max_declines = 5
+        let cfg = VelocityConfig::default();
         let tracker = VelocityTracker::new();
         let at = datetime!(2026-06-17 00:00 UTC);
-        let txn = low_value_card_txn("4111110000009999", "dev-2", at);
+        let txn = card_txn("4111110000009999", "dev-2", at, 100);
 
-        // No declines recorded yet → a fresh observe sees no storm.
-        assert!(!tracker
-            .observe(&txn, &cfg)
-            .iter()
-            .any(|h| h.reason_code.as_str() == "VELOCITY_DECLINE_RETRY"));
-
-        // Feed 6 declines, then the next observe sees the storm.
+        assert!(!fired(&obs(&tracker, &txn), "VELOCITY_DECLINE_RETRY"));
         for _ in 0..6 {
             tracker.record_decline(&txn, &cfg);
         }
-        assert!(tracker
-            .observe(&txn, &cfg)
-            .iter()
-            .any(|h| h.reason_code.as_str() == "VELOCITY_DECLINE_RETRY"));
+        assert!(fired(&obs(&tracker, &txn), "VELOCITY_DECLINE_RETRY"));
     }
 
     #[test]
     fn window_expiry_drops_stale_events() {
-        let cfg = VelocityConfig::default(); // card_testing window = 300s
         let tracker = VelocityTracker::new();
         let start = datetime!(2026-06-17 00:00 UTC);
-        // 5 low-value auths, then a 6th far outside the window → never exceeds 5-in-window.
         for i in 0..5 {
-            let txn =
-                low_value_card_txn("4111110000001234", "dev-3", start + TDuration::seconds(i));
-            assert!(tracker.observe(&txn, &cfg).is_empty());
+            let txn = card_txn(
+                "4111110000001234",
+                "dev-3",
+                start + TDuration::seconds(i),
+                100,
+            );
+            assert!(!fired(&obs(&tracker, &txn), "VELOCITY_CARD_TESTING"));
         }
-        let late = low_value_card_txn(
+        let late = card_txn(
             "4111110000001234",
             "dev-3",
             start + TDuration::seconds(10_000),
+            100,
         );
         assert!(
-            tracker.observe(&late, &cfg).is_empty(),
+            !fired(&obs(&tracker, &late), "VELOCITY_CARD_TESTING"),
             "events outside the window must not accumulate into a burst"
         );
+    }
+
+    #[test]
+    fn impossible_travel_fires_on_implausible_speed() {
+        let tracker = VelocityTracker::new();
+        let t0 = datetime!(2026-06-17 00:00 UTC);
+        let ny =
+            card_txn("4111110000005555", "dev-a", t0, 5_000).with_geo(Geo::new("US", 40.71, -74.0));
+        let tokyo = card_txn(
+            "4111110000005555",
+            "dev-b",
+            t0 + TDuration::seconds(60),
+            5_000,
+        )
+        .with_geo(Geo::new("JP", 35.68, 139.69));
+        assert!(
+            !fired(&obs(&tracker, &ny), "IMPOSSIBLE_TRAVEL"),
+            "first sighting sets the baseline"
+        );
+        assert!(fired(&obs(&tracker, &tokyo), "IMPOSSIBLE_TRAVEL"));
+    }
+
+    #[test]
+    fn amount_anomaly_fires_above_running_mean() {
+        let tracker = VelocityTracker::new();
+        let start = datetime!(2026-06-17 00:00 UTC);
+        // Baseline of $1 tickets (min_samples = 5).
+        for i in 0..6 {
+            let txn = card_txn(
+                "4111110000007777",
+                "dev-c",
+                start + TDuration::seconds(i),
+                100,
+            );
+            assert!(!fired(&obs(&tracker, &txn), "AMOUNT_ANOMALY"));
+        }
+        // A $1000 ticket is >10x the ~$1 mean → fires.
+        let big = card_txn(
+            "4111110000007777",
+            "dev-c",
+            start + TDuration::seconds(7),
+            100_000,
+        );
+        assert!(fired(&obs(&tracker, &big), "AMOUNT_ANOMALY"));
     }
 }
