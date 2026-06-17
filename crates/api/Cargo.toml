@@ -10,8 +10,11 @@ workspace = true
 
 [dependencies]
 compliance = { path = "../compliance" }
+engine = { path = "../engine" }
+rules = { path = "../rules" }
 axum = { workspace = true }
 tokio = { workspace = true, features = ["net", "rt-multi-thread", "macros"] }
+tokio-stream = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
