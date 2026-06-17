@@ -112,4 +112,36 @@ Gate: verify.mjs MEASURED_PASS 20/0 (axe 0 serious, no 320 overflow, CLS 0.000, 
 Tier-A critic → SHIP (caveat: critic passed the dropdown that the owner then rejected — fixed after).
 Interaction flows (four-eyes pending→approve, SAR, notes, filters, custom dropdown) driven + screenshotted.
 
-## Simulation control dashboard — pending (next, also Next.js) — BOTH hooks: SLA-wall (hero) + live-pipeline (section)
+## Simulation control dashboard (`/sim`) — 2026-06-18
+
+**Deliverable:** app surface (load-harness operator console). Second dashboard; shares the analyst
+token contract (amber, dark, tabular-mono) for coherence but a **deliberately distinct archetype +
+hook** (the engine's rule: never repeat a sibling's composition/mechanism).
+
+**Archetype — control room.** Not the analyst's two-pane worklist: a control bar (Run/Pause · scenario
+dropdown · fault toggle · target-load slider) + one dominant live instrument + a vitals column + a
+pipeline band.
+
+**Hooks — BOTH, per owner ("сделать и то и то"):**
+- **The SLA wall** (hero) — one live `p99 × throughput` plane; the engine's operating point streams
+  from the mock SSE feed and pushes toward a hard L-shaped boundary (`p99<20ms @ 20k tx/s`, drawn as a
+  red dashed wall). Crank the load → the point climbs the queueing curve to the wall, turns **red**,
+  and the engine **fail-safe sheds load** (`shedding N/s`, DEGRADE badge) to hold p99 *inside* the SLA
+  rather than fail-open to APPROVE. Headroom-to-the-wall ticks down live. This is the project's hard
+  goal made visceral.
+- **Live pipeline** (band) — the 5 stages `rules→features→ML→graph→compliance` with per-stage
+  throughput; the bottleneck stage shows red back-pressure (`queue +N/s`) under load. Answers "which
+  organ is the limiter".
+
+**Telemetry model** (`lib/sim.js`) — M/M/1-ish: p99 ~3ms idle, blows up as ρ→1; capacity varies by
+scenario (baseline 23k / fraud-surge 20.5k / card-testing 21.5k / degrade 14k), an injected fault cuts
+it 40%; decision mix shifts by scenario (fraud-surge → review 17% / decline 14%). Deterministic first
+paint (jitter 0) for stable QA; live jitter after mount.
+
+**Shared UI** — `Icon` + `Dropdown` extracted to `app/ui.jsx` (analyst migrated onto it too — DRY, no
+drift). Custom range slider (styled webkit/moz thumb + amber fill track) — no default form controls.
+`trailingSlash:true` so `/sim/` resolves on a plain static server.
+
+Gate: verify.mjs MEASURED_PASS 20/0 (axe 0 serious, no 320 overflow, CLS 0.000, LCP 60–152ms) +
+independent **Tier-A** critic → **SHIP**, blocking_fails []. Both hooks confirmed enacting across
+captured states (NOMINAL inside wall → DEGRADE red at wall + shedding → fraud-surge mix shift + ML jam).
