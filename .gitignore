@@ -113,3 +113,6 @@ coverage.xml
 
 # design-creator — ignore ONLY the heavy mockup iterations
 .design/mockups/
+
+# code-review local working state (report, receipts)
+.review/
