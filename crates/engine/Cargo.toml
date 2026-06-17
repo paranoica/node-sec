@@ -9,3 +9,10 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+domain = { path = "../domain" }
+tokio = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
+
+[build-dependencies]
+tonic-build = "0.12"

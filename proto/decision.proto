@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package nodesec.decision.v1;
+
+// The synchronous decision endpoint (D-001 sync path).
+service DecisionService {
+  // Score one transaction and return a verdict. Idempotent per idempotency_key (D-016):
+  // a retry with a seen key returns the original decision with no further state change.
+  rpc Decide(DecisionRequest) returns (DecisionResponse);
+}
+
+message DecisionRequest {
+  string idempotency_key = 1;     // required — makes the call idempotent
+  string transaction_id = 2;
+  int64 amount_minor_units = 3;   // integer minor units (arch:money-integer)
+  string currency = 4;            // ISO-4217 alpha: USD, EUR, GBP, JPY
+  string vertical = 5;            // CARD | P2P | CRYPTO
+  string channel = 6;
+  string pan = 7;                 // optional, card vertical
+  string merchant = 8;            // optional
+  string device = 9;              // optional
+}
+
+message DecisionResponse {
+  string transaction_id = 1;
+  string action = 2;              // APPROVE | DECLINE | STEP_UP | REVIEW | HOLD
+  double score = 3;
+  string band = 4;                // LOW | MEDIUM | HIGH | VERY_HIGH
+  repeated string reason_codes = 5;
+  string rule_version = 6;
+  string model_version = 7;
+}
