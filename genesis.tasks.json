@@ -378,7 +378,7 @@
       "id": "T021",
       "title": "Online feature store (Redis) + hot-path read integration",
       "sprint": "S2-feature-store",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T020",
         "T010"

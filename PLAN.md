@@ -58,7 +58,7 @@
     - _accept:_ WHEN transaction events stream in THEN per-entity aggregate and velocity features over 1m/5m/1h/24h/7d/30d windows SHALL be maintained and written to the online feature store
     - _accept:_ WHERE events are partitioned by entity key THEN per-entity windowed state SHALL be computed within a single partition
     - _verify (test):_ cargo test -p stream windows
-- [ ] **T021** Online feature store (Redis) + hot-path read integration ← T020, T010
+- [x] **T021** Online feature store (Redis) + hot-path read integration ← T020, T010
     - _accept:_ WHEN the hot path requests features for an entity THEN it SHALL read precomputed aggregates from the online store within the per-call timeout
     - _accept:_ WHEN an event updates an aggregate THEN the online store SHALL reflect it within the configured freshness bound
     - _verify (test):_ cargo test -p features online
