@@ -23,7 +23,7 @@
     - _verify (manual):_ gh workflow run ci.yml
 
 ## S1-card-slice
-- [ ] **T010** gRPC decision endpoint + idempotency ← T002
+- [x] **T010** gRPC decision endpoint + idempotency ← T002
     - _accept:_ WHEN a decision request with an idempotency key is received THEN the engine SHALL return a decision
     - _accept:_ WHEN a request is retried with a previously seen idempotency key THEN the engine SHALL return the original decision and SHALL NOT produce an additional state update
     - _verify (test):_ cargo test -p engine idempotency

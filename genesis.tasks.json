@@ -144,7 +144,7 @@
       "id": "T010",
       "title": "gRPC decision endpoint + idempotency",
       "sprint": "S1-card-slice",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T002"
       ],
