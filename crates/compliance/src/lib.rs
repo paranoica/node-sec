@@ -4,9 +4,11 @@
 //! AML monitoring (T051), the case lifecycle (T052), and SAR/STR (T053) follow in sprint S5.
 #![forbid(unsafe_code)]
 
+pub mod aml;
 pub mod audit;
 pub mod screening;
 
+pub use aml::{evaluate as evaluate_aml, AmlAlert, AmlConfig, AmlTransaction, Direction};
 pub use audit::{
     AuditError, AuditRecord, AuditSink, InMemoryAuditSink, PostgresAuditSink, ReproducedDecision,
 };

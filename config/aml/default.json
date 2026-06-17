@@ -1,0 +1,9 @@
+{
+  "ctr_threshold_minor": 1000000,
+  "structuring_band_minor": 100000,
+  "structuring_min_count": 3,
+  "funnel_min_geographies": 3,
+  "funnel_max_destinations": 2,
+  "round_trip_tolerance": 0.05,
+  "round_trip_window_secs": 15552000
+}
