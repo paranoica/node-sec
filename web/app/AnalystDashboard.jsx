@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { initialQueue, makeCase, byRisk, tierOf, catOf, CATS } from "../lib/data";
+import { initialQueue, makeCase, byRisk, tierOf, catOf, CATS, fmtMoney } from "../lib/data";
+
+const fmtAgo = (m) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`);
 
 const STATUS_FILTERS = [
   { id: "all", label: "All" },
@@ -226,6 +228,21 @@ function Detail({ c, reduced, act }) {
 
       <Banner c={c} />
 
+      <div className="sect"><h3>Transactions</h3>
+        {c.txns.length
+          ? <div className="txns">{c.txns.map((t, i) => (
+              <div className={`txn${t.flag ? " flag" : ""}`} key={i}>
+                <span className="tamt mono">{fmtMoney(t.amount)}</span>
+                <span className="tmeta">
+                  <span className="tm">{t.merchant}</span>
+                  <span className="tsub">{t.mcc} · {t.channel}{t.avs !== "—" ? ` · AVS ${t.avs} CVV ${t.cvv}` : ""}</span>
+                </span>
+                <span className={`tauth ${t.auth}`}>{t.auth}</span>
+                <span className="tago mono">{fmtAgo(t.mins)}</span>
+              </div>
+            ))}</div>
+          : <Empty>No transactions on this case.</Empty>}
+      </div>
       <div className="sect"><h3>Alerts</h3>
         {c.alerts.length
           ? <div className="chips">{c.alerts.map((a) => <span className="chip alert" key={a}>{a}</span>)}</div>

@@ -31,6 +31,27 @@ const EVIDENCE = [
 export const CATS = ["aml", "sanctions", "rules", "crypto", "p2p", "mcc"];
 export const catOf = (alert) => alert.split(":")[0];
 
+// transactions — money is ALWAYS integer minor units + currency (arch:money-integer), never float
+const MERCH = [
+  { name: "Steam Games", mcc: "5816 · digital goods" },
+  { name: "Apple Store", mcc: "5732 · electronics" },
+  { name: "BetMGM", mcc: "7995 · gambling" },
+  { name: "Coinbase", mcc: "6051 · quasi-cash" },
+  { name: "Uber", mcc: "4121 · transport" },
+  { name: "Amazon", mcc: "5942 · retail" },
+  { name: "Western Union", mcc: "4829 · money transfer" },
+  { name: "Walmart", mcc: "5411 · grocery" },
+];
+const CHANNELS = ["CP", "CNP", "online"];
+const FIAT = ["USD", "EUR", "GBP"];
+
+// integer minor units → display string; non-ISO tickers (crypto) fall back to a plain amount + symbol
+export function fmtMoney({ minor, currency }) {
+  const major = minor / 100;
+  try { return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(major); }
+  catch { return major.toLocaleString("en-US", { minimumFractionDigits: 2 }) + " " + currency; }
+}
+
 // deterministic PRNG so the prototype renders identically each load (stable QA screenshots)
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
@@ -42,15 +63,49 @@ const sample = (a, k) => {
   return out;
 };
 
+// the disputed transaction(s) + a short behavioural timeline — what the analyst actually decides on.
+// Flavoured by subject: card → card auths (AVS/CVV), wallet → on-chain transfers, acct → transfers.
+function makeTxns(subject) {
+  const isCard = subject.startsWith("card");
+  const isWallet = subject.startsWith("wallet");
+  const cur = isWallet ? "USDT" : pick(FIAT);
+  const k = 3 + Math.floor(rnd() * 3); // 3..5
+  let mins = 1 + Math.floor(rnd() * 5);
+  const out = [];
+  for (let i = 0; i < k; i++) {
+    const flag = i < 2 && rnd() > 0.4; // the recent ones are the suspicious ones
+    const m = isWallet
+      ? { name: flag ? "Withdrawal → mixer-tagged" : "Exchange transfer", mcc: "on-chain" }
+      : pick(MERCH);
+    const channel = isWallet ? "crypto" : isCard ? pick(CHANNELS) : pick(["transfer", "p2p"]);
+    const minor = isWallet ? 80000 + Math.floor(rnd() * 1500000) : 1500 + Math.floor(rnd() * 470000);
+    out.push({
+      mins,
+      amount: { minor, currency: cur },
+      merchant: m.name,
+      mcc: m.mcc,
+      channel,
+      auth: flag && rnd() > 0.6 ? "declined" : "approved",
+      avs: isCard ? (flag ? "N" : rnd() > 0.3 ? "Y" : "N") : "—",
+      cvv: isCard ? (flag ? "N" : "Y") : "—",
+      flag,
+    });
+    mins += 1 + Math.floor(rnd() * 16);
+  }
+  return out;
+}
+
 let n = 0;
 export function makeCase(risk) {
   risk = risk ?? +(0.05 + rnd() * 0.93).toFixed(2);
   const id = 1000 + n++;
+  const subject = pick(SUBJ);
   return {
     case_id: "case-" + id,
-    subject: pick(SUBJ),
+    subject,
     risk,
     state: pick(STATES),
+    txns: makeTxns(subject),
     alerts: uniq(Array.from({ length: Math.floor(rnd() * 4) }, () => pick(ALERTS))),
     evidence: sample(EVIDENCE, Math.floor(rnd() * 3)),
     reason_codes: uniq(Array.from({ length: Math.floor(rnd() * 3) }, () => pick(CODES))),

@@ -102,6 +102,9 @@ Owner caught the real gap: the console was a **viewer, not a workbench** ("я з
   unstylable) with an own listbox component (outside-click / Escape close, arrow-key nav, amber
   selected + check). Owner caught that the native popup leaked default chrome; the Tier-A critic had
   missed it (it only inspected the closed control) — logged as a critic-miss.
+- **Transactions panel** — the disputed op + a short behavioural timeline (amount as integer minor
+  units + currency per `arch:money-integer`, merchant/MCC/channel/AVS-CVV/auth, flagged disputed row).
+  Closes the "what do you click fraud ON" gap — triage tool → decision tool. (Owner-prompted scope add.)
 - **Evidence mock fixed** — `kind` and `detail` were paired at random ("VELOCITY → OFAC SDN", dupes);
   now each evidence fact is a coherent `{kind, detail}` pair.
 

@@ -146,6 +146,21 @@ ul.list{list-style:none; margin:0; padding:0}
 .glink .wbar i{display:block; height:100%; background:var(--accent); width:calc(var(--w)*100%)}
 .none{color:var(--faint); font-size:12px}
 
+/* ---- transactions (the disputed op + behavioural timeline) ---- */
+.txns{display:flex; flex-direction:column}
+.txn{display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line)}
+.txn:last-child{border-bottom:0}
+.txn.flag{background:var(--accent-dim); margin:0 -8px; padding:7px 8px; border-radius:var(--r-sm); border-bottom:0}
+.txn.flag + .txn{border-top:1px solid var(--line)}
+.txn .tamt{flex:none; min-width:92px; text-align:right; font-size:14px; font-weight:600; letter-spacing:-.02em; white-space:nowrap}
+.txn.flag .tamt{color:var(--accent)}
+.txn .tmeta{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px}
+.txn .tm{font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.txn .tsub{font-size:10px; color:var(--faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.txn .tauth{flex:none; font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted)}
+.txn .tauth.declined{color:#f0a79f}
+.txn .tago{flex:none; width:46px; text-align:right; font-size:10.5px; color:var(--faint)}
+
 /* ---- workflow: status banner, actions, four-eyes, notes ---- */
 .banner{display:flex; align-items:center; flex-wrap:wrap; gap:5px 9px; padding:9px 11px; border-radius:var(--r-md); font-size:11.5px; margin-bottom:4px}
 .banner svg{width:15px; height:15px; flex:none}
