@@ -583,7 +583,7 @@
       "id": "T033",
       "title": "SHAP reason codes from the model",
       "sprint": "S3-ml-scoring",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T031"
       ],

@@ -86,7 +86,7 @@
     - _accept:_ WHEN rule signals and the calibrated model score are fused THEN the action SHALL be selected by expected value over the configured cost matrix
     - _accept:_ WHEN a hard rule override is present THEN it SHALL win regardless of the model score
     - _verify (test):_ cargo test -p engine fusion_ev
-- [ ] **T033** SHAP reason codes from the model ← T031
+- [x] **T033** SHAP reason codes from the model ← T031
     - _accept:_ WHEN the model scores a transaction THEN the top contributing features SHALL be mapped to stable, versioned reason codes attached to the decision
     - _verify (test):_ cargo test -p model reason_codes
 - [ ] **T034** Delayed-label simulation + two label streams + random-control holdout ← T030, T004
