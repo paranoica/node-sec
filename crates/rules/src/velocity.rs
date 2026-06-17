@@ -32,6 +32,30 @@ pub struct VelocityTracker {
     card_amount_stats: DashMap<String, (u64, f64)>,
 }
 
+/// Hard cap on entries per counter map. Bounds memory under a high-cardinality flood (the
+/// card-testing / BIN-enumeration attack these maps detect would otherwise grow the key set without
+/// limit → OOM). Eviction is arbitrary — graceful degradation (stop tracking some cold entities)
+/// rather than crashing; true recency/TTL eviction arrives with the S2 online feature store.
+const MAX_ENTITIES: usize = 1_000_000;
+
+/// Drop arbitrary entries from a counter map once it exceeds `cap`, bounding its memory.
+fn cap_map<K, V>(map: &dashmap::DashMap<K, V>, cap: usize)
+where
+    K: Eq + std::hash::Hash + Clone,
+{
+    let len = map.len();
+    if len > cap {
+        let victims: Vec<K> = map
+            .iter()
+            .take(len - cap)
+            .map(|e| e.key().clone())
+            .collect();
+        for k in victims {
+            map.remove(&k);
+        }
+    }
+}
+
 fn evict_ts(dq: &mut VecDeque<OffsetDateTime>, now: OffsetDateTime, window_secs: i64) {
     let cutoff = now - Duration::seconds(window_secs);
     while dq.front().is_some_and(|&t| t < cutoff) {
@@ -156,6 +180,7 @@ impl VelocityTracker {
             *entry.value_mut() = (new_count, mean + (value - mean) / new_count as f64);
         }
 
+        self.enforce_caps();
         hits
     }
 
@@ -163,9 +188,21 @@ impl VelocityTracker {
     pub fn record_decline(&self, txn: &Transaction, cfg: &VelocityConfig) {
         let Some(pan) = &txn.pan else { return };
         let now = txn.occurred_at;
-        let mut dq = self.card_declines.entry(pan.redacted()).or_default();
-        dq.push_back(now);
-        evict_ts(dq.value_mut(), now, cfg.decline_retry.window_secs);
+        {
+            let mut dq = self.card_declines.entry(pan.redacted()).or_default();
+            dq.push_back(now);
+            evict_ts(dq.value_mut(), now, cfg.decline_retry.window_secs);
+        } // drop the entry guard before capping (which iterates the same map)
+        self.enforce_caps();
+    }
+
+    /// Bound every counter map so an unbounded key set can never exhaust memory.
+    fn enforce_caps(&self) {
+        cap_map(&self.device_low_value, MAX_ENTITIES);
+        cap_map(&self.bin_pans, MAX_ENTITIES);
+        cap_map(&self.card_declines, MAX_ENTITIES);
+        cap_map(&self.card_last_location, MAX_ENTITIES);
+        cap_map(&self.card_amount_stats, MAX_ENTITIES);
     }
 }
 
@@ -213,6 +250,16 @@ mod tests {
             &ImpossibleTravel::default(),
             &AmountAnomaly::default(),
         )
+    }
+
+    #[test]
+    fn cap_map_bounds_entry_count() {
+        let map: dashmap::DashMap<u64, u64> = dashmap::DashMap::new();
+        for i in 0..50 {
+            map.insert(i, i);
+        }
+        cap_map(&map, 10);
+        assert!(map.len() <= 10, "map must be capped, got {}", map.len());
     }
 
     #[test]

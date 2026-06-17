@@ -46,20 +46,54 @@ pub fn entity_keys(txn: &Transaction) -> Vec<String> {
 /// entity's event deque self-bounds to the largest window, but the key set only grows. A
 /// production async path bounds this (active-set eviction, or backing the working state in Redis);
 /// the per-window read is also O(events) and would become incremental counters there.
-#[derive(Debug, Default)]
+/// Hard cap on tracked entities, bounding memory for an open entity space (the key set would
+/// otherwise grow without limit under a high-cardinality flood → OOM). Eviction is arbitrary —
+/// graceful degradation over a crash; recency/TTL eviction arrives with the Redis-backed store.
+const MAX_ENTITIES: usize = 1_000_000;
+
+#[derive(Debug)]
 pub struct Aggregator {
     by_entity: HashMap<String, EntityWindows>,
+    max_entities: usize,
+}
+
+impl Default for Aggregator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Aggregator {
-    /// A fresh aggregator.
+    /// A fresh aggregator bounded to [`MAX_ENTITIES`].
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            by_entity: HashMap::new(),
+            max_entities: MAX_ENTITIES,
+        }
+    }
+
+    /// A fresh aggregator with an explicit entity cap (for tests / tuning).
+    #[must_use]
+    pub fn with_max_entities(max_entities: usize) -> Self {
+        Self {
+            by_entity: HashMap::new(),
+            max_entities: max_entities.max(1),
+        }
+    }
+
+    /// Evict an arbitrary entity if adding `entity` would exceed the cap.
+    fn make_room_for(&mut self, entity: &str) {
+        if !self.by_entity.contains_key(entity) && self.by_entity.len() >= self.max_entities {
+            if let Some(victim) = self.by_entity.keys().next().cloned() {
+                self.by_entity.remove(&victim);
+            }
+        }
     }
 
     /// Record an event under one entity key.
     pub fn record(&mut self, entity: &str, at: OffsetDateTime, amount_minor: i64) {
+        self.make_room_for(entity);
         self.by_entity
             .entry(entity.to_string())
             .or_default()
@@ -76,6 +110,7 @@ impl Aggregator {
         device: Option<String>,
         declined: bool,
     ) {
+        self.make_room_for(entity);
         self.by_entity
             .entry(entity.to_string())
             .or_default()
@@ -155,6 +190,21 @@ mod tests {
         .with_pan(Pan::new(pan))
         .with_device(DeviceId::new(device))
         .with_merchant(MerchantId::new("mrc-1"))
+    }
+
+    #[test]
+    fn aggregator_caps_the_entity_count() {
+        let mut agg = Aggregator::with_max_entities(5);
+        let at = datetime!(2026-06-17 12:00 UTC);
+        // Record 50 distinct entities; the map must never exceed the cap.
+        for i in 0..50 {
+            agg.record(&format!("card:{i}"), at, 100);
+        }
+        assert!(
+            agg.by_entity.len() <= 5,
+            "entity map must be bounded, got {}",
+            agg.by_entity.len()
+        );
     }
 
     #[test]
