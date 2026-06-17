@@ -89,7 +89,7 @@
 - [x] **T033** SHAP reason codes from the model ← T031
     - _accept:_ WHEN the model scores a transaction THEN the top contributing features SHALL be mapped to stable, versioned reason codes attached to the decision
     - _verify (test):_ cargo test -p model reason_codes
-- [ ] **T034** Delayed-label simulation + two label streams + random-control holdout ← T030, T004
+- [x] **T034** Delayed-label simulation + two label streams + random-control holdout ← T030, T004
     - _accept:_ WHEN a fraudulent transaction is approved THEN a chargeback label SHALL arrive after a configurable simulated delay
     - _accept:_ WHEN traffic is sampled into the random control holdout THEN those transactions SHALL be scored but not acted upon, yielding unbiased labels
     - _verify (test):_ cargo test -p simulator labels
