@@ -6,7 +6,9 @@
 #![forbid(unsafe_code)]
 
 pub mod er;
+pub mod mule;
 pub mod txn;
 
 pub use er::{normalise, resolve, IdentifierKind, Record};
+pub use mule::{score_mule, AccountActivity, MuleConfig, MuleScore};
 pub use txn::{TransactionGraph, TransferEdge};
