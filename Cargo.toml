@@ -31,6 +31,8 @@ time = { version = "0.3", features = ["serde", "macros"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
 tonic = "0.12"
 prost = "0.13"
+arc-swap = "1"
+tempfile = "3"
 
 [workspace.lints.clippy]
 # Match CI: clippy runs with -D warnings. Keep the workspace warning-clean from the start.

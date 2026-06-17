@@ -1,0 +1,11 @@
+{
+  "version": "rules-2026-06-17",
+  "blocklists": {
+    "bins": [],
+    "pan_tokens": [],
+    "devices": [],
+    "ips": [],
+    "merchants": [],
+    "counterparties": []
+  }
+}
