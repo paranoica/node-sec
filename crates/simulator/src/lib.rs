@@ -8,11 +8,13 @@
 #![forbid(unsafe_code)]
 
 pub mod generator;
+pub mod labels;
 pub mod population;
 pub mod rng;
 pub mod sink;
 
 pub use generator::{Generator, GeneratorConfig};
+pub use labels::{Label, LabelConfig, LabelSource, LabelValue, LabeledOutcome, Labeler};
 pub use population::Population;
 pub use rng::Rng;
 pub use sink::{CountingSink, EventSink, InMemorySink};
