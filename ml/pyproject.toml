@@ -10,6 +10,7 @@ dependencies = [
     "onnx>=1.16",
     "onnxmltools>=1.12",
     "onnxruntime>=1.18",
+    "networkx>=3.3",
 ]
 
 [dependency-groups]

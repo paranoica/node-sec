@@ -6,9 +6,11 @@
 #![forbid(unsafe_code)]
 
 pub mod derive;
+pub mod graph;
 pub mod offline;
 pub mod online;
 
 pub use derive::{derive, RequestFeatures};
+pub use graph::{GraphFeatureStore, GraphFeatures, InMemoryGraphStore};
 pub use offline::materialize;
 pub use online::{OnlineFeatures, ReadResult};
