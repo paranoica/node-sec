@@ -173,7 +173,7 @@
     - _accept:_ WHEN the full engine is load-tested at approximately 20,000 tx/s THEN p99 latency SHALL be under 20 ms
     - _accept:_ WHEN a dependency (online store or model) is faulted under load THEN fail-safe degradation SHALL hold and the SLA SHALL still be met
     - _verify (test):_ cargo bench -p engine load_sla && scripts/chaos.sh
-- [ ] **T066** Simulation control dashboard API + design-brief ← T035, T004
+- [x] **T066** Simulation control dashboard API + design-brief ← T035, T004
     - _accept:_ WHEN an operator selects a typology scenario THEN the simulation API SHALL inject it and stream live decision and metric updates
     - _accept:_ WHERE the visual layer is built THEN it SHALL be produced via design-creator from a structured design-brief
     - _verify (manual):_ drive the sim API + design-creator brief review

@@ -1215,7 +1215,7 @@
       "id": "T066",
       "title": "Simulation control dashboard API + design-brief",
       "sprint": "S6-verticals-prod",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T035",
         "T004"
