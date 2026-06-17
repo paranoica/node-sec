@@ -30,6 +30,12 @@ pub struct WindowStat {
     /// corrupt every variance/z-score that feeds the rules and the model.
     #[serde(default)]
     pub sum_sq: i128,
+    /// Distinct devices seen on this entity in the window (feeds `distinct_devices_24h`).
+    #[serde(default)]
+    pub distinct_devices: u64,
+    /// Declined events in the window (feeds `decline_rate_1h` together with `count`).
+    #[serde(default)]
+    pub decline_count: u64,
 }
 
 impl WindowStat {
@@ -71,26 +77,52 @@ impl WindowAggregates {
     }
 }
 
+/// One recorded event: time, amount, and the device + decline outcome that feed the cardinality and
+/// decline-rate features.
+#[derive(Debug, Clone)]
+struct Event {
+    at: OffsetDateTime,
+    amount: i64,
+    device: Option<String>,
+    declined: bool,
+}
+
 /// Per-entity event history, retained out to the largest window and queried for all windows.
 #[derive(Debug, Default)]
 pub struct EntityWindows {
-    events: VecDeque<(OffsetDateTime, i64)>,
+    events: VecDeque<Event>,
 }
 
 impl EntityWindows {
-    /// Record an event `(at, amount)` and evict anything older than the largest window relative to
-    /// the most recent event.
+    /// Record an amount-only event (no device / decline outcome).
     pub fn record(&mut self, at: OffsetDateTime, amount_minor: i64) {
-        self.events.push_back((at, amount_minor));
-        let latest = self.events.back().map_or(at, |&(t, _)| t);
+        self.record_full(at, amount_minor, None, false);
+    }
+
+    /// Record a full event — amount plus the device fingerprint and whether the decision declined —
+    /// and evict anything older than the largest window relative to the most recent event.
+    pub fn record_full(
+        &mut self,
+        at: OffsetDateTime,
+        amount_minor: i64,
+        device: Option<String>,
+        declined: bool,
+    ) {
+        self.events.push_back(Event {
+            at,
+            amount: amount_minor,
+            device,
+            declined,
+        });
+        let latest = self.events.back().map_or(at, |e| e.at);
         let max_secs = WINDOWS[WINDOWS.len() - 1].1;
         let cutoff = latest - Duration::seconds(max_secs);
-        while self.events.front().is_some_and(|&(t, _)| t < cutoff) {
+        while self.events.front().is_some_and(|e| e.at < cutoff) {
             self.events.pop_front();
         }
     }
 
-    /// Compute count + sum for every window as of `now` in a single pass.
+    /// Compute count + sum + distinct-devices + declines for every window as of `now` in one pass.
     #[must_use]
     pub fn aggregates(&self, now: OffsetDateTime) -> WindowAggregates {
         let mut windows: Vec<WindowStat> = WINDOWS
@@ -100,24 +132,40 @@ impl EntityWindows {
                 count: 0,
                 sum_minor: 0,
                 sum_sq: 0,
+                distinct_devices: 0,
+                decline_count: 0,
             })
             .collect();
+        // Distinct device sets per window (index-aligned with `windows`).
+        let mut devices: Vec<std::collections::HashSet<&str>> = WINDOWS
+            .iter()
+            .map(|_| std::collections::HashSet::new())
+            .collect();
 
-        for &(t, amount) in &self.events {
-            let age = (now - t).whole_seconds();
+        for event in &self.events {
+            let age = (now - event.at).whole_seconds();
             if age < 0 {
                 continue; // event in the future relative to the query point
             }
             for (i, (_, secs)) in WINDOWS.iter().enumerate() {
                 if age <= *secs {
                     windows[i].count += 1;
-                    windows[i].sum_minor = windows[i].sum_minor.saturating_add(amount);
+                    windows[i].sum_minor = windows[i].sum_minor.saturating_add(event.amount);
                     // i128: a squared i64 amount cannot overflow i128, so the variance input stays
                     // exact for any realistic volume instead of saturating to garbage.
-                    let sq = i128::from(amount) * i128::from(amount);
+                    let sq = i128::from(event.amount) * i128::from(event.amount);
                     windows[i].sum_sq = windows[i].sum_sq.saturating_add(sq);
+                    if event.declined {
+                        windows[i].decline_count += 1;
+                    }
+                    if let Some(device) = &event.device {
+                        devices[i].insert(device.as_str());
+                    }
                 }
             }
+        }
+        for (i, set) in devices.iter().enumerate() {
+            windows[i].distinct_devices = set.len() as u64;
         }
         WindowAggregates { windows }
     }
@@ -145,6 +193,35 @@ mod tests {
             expected > i128::from(i64::MAX),
             "test must exceed i64 range"
         );
+    }
+
+    #[test]
+    fn aggregates_count_distinct_devices_and_declines() {
+        let now = datetime!(2026-06-17 12:00 UTC);
+        let mut w = EntityWindows::default();
+        w.record_full(
+            now - TDuration::seconds(10),
+            100,
+            Some("d1".to_string()),
+            false,
+        );
+        w.record_full(
+            now - TDuration::seconds(20),
+            100,
+            Some("d2".to_string()),
+            true,
+        );
+        w.record_full(
+            now - TDuration::seconds(30),
+            100,
+            Some("d1".to_string()),
+            true,
+        ); // repeat
+        let s = w.aggregates(now);
+        let stat = s.get("5m").unwrap();
+        assert_eq!(stat.count, 3);
+        assert_eq!(stat.distinct_devices, 2); // d1, d2 — the repeat isn't double-counted
+        assert_eq!(stat.decline_count, 2);
     }
 
     #[test]

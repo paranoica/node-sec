@@ -33,13 +33,22 @@ const HIGH_RISK_MCC: [u32; 3] = [7995, 4829, 6051];
 /// `[velocity_5m, velocity_1h, velocity_24h, amount_to_mean_ratio, amount_z_score,
 ///   distinct_devices_24h, decline_rate_1h, high_risk_mcc]`.
 ///
-/// `high_risk_mcc` is now derived from the (enriched) transaction MCC. `distinct_devices_24h` and
-/// `decline_rate_1h` are still `0.0`: the online aggregates carry no device cardinality or decline
-/// counts yet — they light up when those aggregates are added; until then the model scores on six.
+/// All eight features are now derived: velocity and amount-deviation from the windowed aggregates,
+/// `distinct_devices_24h` and `decline_rate_1h` from the device/decline aggregates, and
+/// `high_risk_mcc` from the (enriched) transaction MCC. A cold entity (empty aggregates) scores the
+/// neutral defaults rather than a stub.
 #[must_use]
 pub fn model_vector(txn: &Transaction, aggregates: &WindowAggregates) -> Vec<f32> {
     let dev = derive(txn, aggregates);
     let velocity = |label: &str| aggregates.get(label).map_or(0, |s| s.count) as f32;
+    let distinct_devices_24h = aggregates.get("24h").map_or(0, |s| s.distinct_devices) as f32;
+    let decline_rate_1h = aggregates.get("1h").map_or(0.0, |s| {
+        if s.count > 0 {
+            s.decline_count as f32 / s.count as f32
+        } else {
+            0.0
+        }
+    });
     let high_risk_mcc = txn.mcc.is_some_and(|mcc| HIGH_RISK_MCC.contains(&mcc));
     vec![
         velocity("5m"),
@@ -47,8 +56,8 @@ pub fn model_vector(txn: &Transaction, aggregates: &WindowAggregates) -> Vec<f32
         velocity("24h"),
         dev.amount_to_mean_ratio as f32,
         dev.amount_z_score as f32,
-        0.0, // distinct_devices_24h — not in the online aggregates yet
-        0.0, // decline_rate_1h — not in the online aggregates yet
+        distinct_devices_24h,
+        decline_rate_1h,
         f32::from(u8::from(high_risk_mcc)),
     ]
 }
@@ -100,6 +109,7 @@ mod tests {
                 count,
                 sum_minor,
                 sum_sq,
+                ..Default::default()
             }],
         }
     }
@@ -135,18 +145,21 @@ mod tests {
                     count: v5m,
                     sum_minor: 0,
                     sum_sq: 0,
+                    ..Default::default()
                 },
                 WindowStat {
                     label: "1h".to_string(),
                     count: v1h,
                     sum_minor: 0,
                     sum_sq: 0,
+                    ..Default::default()
                 },
                 WindowStat {
                     label: "24h".to_string(),
                     count: v24h,
                     sum_minor: 0,
                     sum_sq: 0,
+                    ..Default::default()
                 },
             ],
         }
@@ -159,10 +172,34 @@ mod tests {
         assert_eq!(v[0], 2.0); // velocity_5m
         assert_eq!(v[1], 5.0); // velocity_1h
         assert_eq!(v[2], 13.0); // velocity_24h
-                                // No 30d history → neutral deviation features, and the three unsupplied features are 0.
-        assert_eq!(v[3], 1.0); // amount_to_mean_ratio (neutral)
+        assert_eq!(v[3], 1.0); // amount_to_mean_ratio (neutral, no 30d history)
         assert_eq!(v[4], 0.0); // amount_z_score (neutral)
+                               // No device/decline data and no MCC in this fixture → the last three are 0.
         assert_eq!(&v[5..8], &[0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn model_vector_derives_device_spread_and_decline_rate() {
+        // 24h window has 2 distinct devices; 1h window has 2 of 4 declined → decline_rate 0.5.
+        let agg = WindowAggregates {
+            windows: vec![
+                WindowStat {
+                    label: "1h".to_string(),
+                    count: 4,
+                    decline_count: 2,
+                    ..Default::default()
+                },
+                WindowStat {
+                    label: "24h".to_string(),
+                    count: 4,
+                    distinct_devices: 2,
+                    ..Default::default()
+                },
+            ],
+        };
+        let v = model_vector(&txn(1_000), &agg);
+        assert_eq!(v[5], 2.0); // distinct_devices_24h
+        assert!((v[6] - 0.5).abs() < 1e-6); // decline_rate_1h
     }
 
     #[test]

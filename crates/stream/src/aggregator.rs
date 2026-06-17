@@ -66,6 +66,22 @@ impl Aggregator {
             .record(at, amount_minor);
     }
 
+    /// Record an event with its device fingerprint and decline outcome, feeding the
+    /// distinct-devices and decline-rate aggregates.
+    pub fn record_full(
+        &mut self,
+        entity: &str,
+        at: OffsetDateTime,
+        amount_minor: i64,
+        device: Option<String>,
+        declined: bool,
+    ) {
+        self.by_entity
+            .entry(entity.to_string())
+            .or_default()
+            .record_full(at, amount_minor, device, declined);
+    }
+
     /// The current aggregates for an entity as of `now` (empty if the entity is unknown).
     #[must_use]
     pub fn aggregates(&self, entity: &str, now: OffsetDateTime) -> WindowAggregates {
@@ -98,9 +114,15 @@ impl<S: FeatureStore> StreamProcessor<S> {
     /// Propagates [`StoreError`] from the store.
     pub fn process(&mut self, txn: &Transaction) -> Result<Vec<String>, StoreError> {
         let keys = entity_keys(txn);
+        let device = txn.device.as_ref().map(|d| d.as_str().to_string());
         for key in &keys {
-            self.aggregator
-                .record(key, txn.occurred_at, txn.amount.minor_units());
+            self.aggregator.record_full(
+                key,
+                txn.occurred_at,
+                txn.amount.minor_units(),
+                device.clone(),
+                false, // the decline outcome is fed back on the feedback path, not at ingest
+            );
         }
         for key in &keys {
             let aggregates = self.aggregator.aggregates(key, txn.occurred_at);

@@ -142,6 +142,7 @@ mod tests {
                 count: 3,
                 sum_minor: 600,
                 sum_sq: 120_000,
+                ..Default::default()
             }],
         }
     }
