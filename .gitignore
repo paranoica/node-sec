@@ -1,0 +1,115 @@
+# ── Common base — OS · editors · env · logs · temp ───────────────────────────
+# Vendored & curated from github/gitignore (Global/*) — CC0-1.0 (public domain).
+# RULE: never add a lockfile here — lockfiles are COMMITTED for reproducible installs.
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Editors / IDEs (keep shared VSCode config; ignore the rest)
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*.sublime-workspace
+
+# Environment / secrets — commit a .env.example, never real secrets
+.env
+.env.*
+!.env.example
+
+# Logs & temp
+*.log
+logs/
+*.tmp
+*.temp
+.cache/
+tmp/
+
+# ── Rust ──────────────────────────────────────────────────────────────────────
+# Vendored & curated from github/gitignore (Rust.gitignore) — CC0-1.0.
+# Cargo.lock is COMMITTED (this is an app/workspace, not a library).
+
+# Build output
+/target/
+
+# rustfmt backups
+**/*.rs.bk
+
+# MSVC debug info
+*.pdb
+
+# ── Python ──────────────────────────────────────────────────────────────────
+# Vendored & curated from github/gitignore (Python.gitignore) — CC0-1.0.
+# Lockfiles (uv.lock) are COMMITTED for apps — not ignored.
+
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test / coverage / type caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ── bedrock — skill artifacts (derived / local; rebuilt on demand) ────────────
+# The COMMITTED counterparts (docs/, PLAN.md, genesis.tasks.json, AGENTS.md, CLAUDE.md,
+# project-context/) are the source of truth and are deliberately NOT listed here.
+
+# project-map — rebuilt by tools/project-map/build.py
+.map/
+
+# genesis receipts / interview log / calibration — local
+.genesis/
+
+# prompt-refiner calibration — local
+.refiner/
+
+# code-review — commit suppressions.json + standards.md; ignore the rebuildable
+.review/index.json
+.review/outcomes.jsonl
+
+# design-creator — ignore ONLY the heavy mockup iterations
+.design/mockups/

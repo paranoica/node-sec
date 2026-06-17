@@ -1,0 +1,179 @@
+<!-- GENERATED from genesis.tasks.json by backlog.py — DO NOT EDIT BY HAND. Change task state via: backlog.py status <id> <state> -->
+
+# Plan — node-sec — real-time anti-fraud decision engine
+
+## S0-foundation
+- [x] **T001** Cargo workspace + crate skeleton
+    - _accept:_ WHEN `cargo build --workspace` is run THEN every crate (domain, engine, ingest, stream, features, rules, model, graph, compliance, simulator) SHALL compile
+    - _accept:_ WHERE a crate is vertical-specific THEN it SHALL live under a verticals/ pack and the core crates SHALL NOT depend on it
+    - _verify (test):_ cargo build --workspace
+- [ ] **T002** Domain types crate (money as integer minor units) ← T001
+    - _accept:_ WHEN a monetary amount is constructed THEN it SHALL be an integer minor-unit value with an explicit currency and SHALL reject floating-point construction
+    - _accept:_ WHEN a transaction is built THEN it SHALL carry amount+currency, timestamp, and references to the entities involved (card/account/device/ip/merchant/counterparty)
+    - _verify (test):_ cargo test -p domain
+- [ ] **T003** Infra: docker-compose (Redpanda, Redis, Postgres, Prometheus, Grafana)
+    - _accept:_ WHEN `docker compose up` is run THEN Redpanda, Redis, Postgres, Prometheus, and Grafana SHALL each become reachable on their documented ports and pass a healthcheck
+    - _verify (manual):_ docker compose up -d && scripts/healthcheck.sh
+- [ ] **T004** Synthetic transaction generator v0 (legit baseline → backbone) ← T002, T003
+    - _accept:_ WHEN the generator runs at a configured rate R THEN it SHALL publish schema-valid transaction events to the event backbone at approximately R per second
+    - _accept:_ WHERE an entity population size is configured THEN generated transactions SHALL reuse cards/accounts/devices from that population so velocity features are meaningful
+    - _verify (test):_ cargo test -p simulator
+- [ ] **T005** Wire up CI (build + test + lint, polyglot) ← T001
+    - _accept:_ WHEN a push or pull request lands THEN CI SHALL build and test the Rust workspace and run the Python lint/test for the ml/ tree
+    - _verify (manual):_ gh workflow run ci.yml
+
+## S1-card-slice
+- [ ] **T010** gRPC decision endpoint + idempotency ← T002
+    - _accept:_ WHEN a decision request with an idempotency key is received THEN the engine SHALL return a decision
+    - _accept:_ WHEN a request is retried with a previously seen idempotency key THEN the engine SHALL return the original decision and SHALL NOT produce an additional state update
+    - _verify (test):_ cargo test -p engine idempotency
+- [ ] **T011** Rules engine: hot-reloadable config + blocklists ← T010
+    - _accept:_ WHEN rule configuration is updated on disk THEN the engine SHALL load the new rules without a restart
+    - _accept:_ WHEN an identifier matches a blocklist THEN the decision SHALL be a hard decline carrying the rule's reason code and typology tag
+    - _verify (test):_ cargo test -p rules reload
+- [ ] **T012** Card rules: velocity, card-testing, BIN attack, decline-retry storm ← T011
+    - _accept:_ WHEN more than K declined authorisations occur for one card within window W THEN a decline-retry-storm rule SHALL fire
+    - _accept:_ WHEN many distinct PANs sharing one BIN are tested within window W THEN a BIN-attack rule SHALL fire
+    - _accept:_ WHEN a burst of low- or zero-value authorisations originates from one device/IP THEN a card-testing rule SHALL fire
+    - _verify (test):_ cargo test -p rules card_velocity
+- [ ] **T013** Card rules: impossible-travel, amount-anomaly, MCC, AVS/CVV ← T011
+    - _accept:_ WHEN two transactions for one card occur in geographies unreachable within the elapsed time THEN an impossible-travel rule SHALL fire
+    - _accept:_ WHEN the transaction amount z-score against the card baseline exceeds threshold T THEN an amount-anomaly signal SHALL be emitted
+    - _accept:_ WHEN the merchant MCC is in the high-risk set OR the AVS/CVV check mismatches THEN the corresponding soft signal SHALL be emitted
+    - _verify (test):_ cargo test -p rules card_context
+- [ ] **T014** Decisioning v0: risk bands → action + reason codes (rules-only) ← T012, T013
+    - _accept:_ WHEN rule signals are aggregated into a risk band THEN the engine SHALL select exactly one action from {approve, decline, step-up, review, hold}
+    - _accept:_ WHEN a decision is produced THEN it SHALL attach the reason codes of the dominant contributing rules
+    - _verify (test):_ cargo test -p engine decision_bands
+- [ ] **T015** Audit log writer (immutable, replayable) → Postgres ← T010
+    - _accept:_ WHEN a decision is emitted THEN exactly one immutable audit record SHALL be written via the async path containing inputs, feature snapshot, rule/model versions, score, and reason codes
+    - _accept:_ WHEN an audit record is replayed THEN the engine SHALL reproduce the identical decision
+    - _verify (test):_ cargo test -p compliance audit_replay
+- [ ] **T016** Hot-path latency harness (rules-only p99) ← T014, T015
+    - _accept:_ WHEN the rules-only decision path is load-tested THEN p50/p99/p999 latency and sustained throughput SHALL be measured and reported
+    - _verify (test):_ cargo bench -p engine latency
+
+## S2-feature-store
+- [ ] **T020** Stream processor: per-entity windowed aggregates → online store ← T004
+    - _accept:_ WHEN transaction events stream in THEN per-entity aggregate and velocity features over 1m/5m/1h/24h/7d/30d windows SHALL be maintained and written to the online feature store
+    - _accept:_ WHERE events are partitioned by entity key THEN per-entity windowed state SHALL be computed within a single partition
+    - _verify (test):_ cargo test -p stream windows
+- [ ] **T021** Online feature store (Redis) + hot-path read integration ← T020, T010
+    - _accept:_ WHEN the hot path requests features for an entity THEN it SHALL read precomputed aggregates from the online store within the per-call timeout
+    - _accept:_ WHEN an event updates an aggregate THEN the online store SHALL reflect it within the configured freshness bound
+    - _verify (test):_ cargo test -p features online
+- [ ] **T022** Feature taxonomy + request-time deviation derivation ← T021
+    - _accept:_ WHEN a decision is made THEN request-time deviation features (amount ÷ rolling mean, geo distance from usual, z-score) SHALL be derived from looked-up state without a store write
+    - _verify (test):_ cargo test -p features derive
+- [ ] **T023** Offline feature store + point-in-time joins + parity check ← T020
+    - _accept:_ WHEN the offline store materialises a feature for training THEN the join SHALL use only values as-of the event timestamp
+    - _accept:_ WHEN the same event is scored online and offline THEN the two feature vectors SHALL match within tolerance
+    - _verify (test):_ pytest ml/tests/test_parity.py
+- [ ] **T024** Fail-safe degradation (feature-store timeout → rules-only) ← T021
+    - _accept:_ WHEN the online feature store exceeds its per-call timeout THEN the hot path SHALL fall back to rules-only and SHALL still return a decision within the latency SLA
+    - _verify (test):_ cargo test -p engine failsafe
+
+## S3-ml-scoring
+- [ ] **T030** Python training pipeline (LightGBM, cost-sensitive, calibrated) ← T023
+    - _accept:_ WHEN the pipeline trains on labelled data THEN it SHALL produce a LightGBM model trained cost-sensitively and a calibrated score (isotonic or Platt)
+    - _accept:_ WHEN the calibrated model is evaluated THEN its score SHALL approximate the true fraud probability on a held-out set
+    - _verify (test):_ pytest ml/tests/test_train.py
+- [ ] **T031** ONNX export + in-process inference in Rust ← T030, T022
+    - _accept:_ WHEN a trained model is exported to ONNX THEN the engine SHALL load it and score a feature vector in-process with no network call
+    - _accept:_ WHEN the same feature vector is scored in Python and in the Rust engine THEN the scores SHALL match within tolerance
+    - _verify (test):_ cargo test -p model inference_parity
+- [ ] **T032** Score fusion + expected-value action selection ← T031, T014
+    - _accept:_ WHEN rule signals and the calibrated model score are fused THEN the action SHALL be selected by expected value over the configured cost matrix
+    - _accept:_ WHEN a hard rule override is present THEN it SHALL win regardless of the model score
+    - _verify (test):_ cargo test -p engine fusion_ev
+- [ ] **T033** SHAP reason codes from the model ← T031
+    - _accept:_ WHEN the model scores a transaction THEN the top contributing features SHALL be mapped to stable, versioned reason codes attached to the decision
+    - _verify (test):_ cargo test -p model reason_codes
+- [ ] **T034** Delayed-label simulation + two label streams + random-control holdout ← T030, T004
+    - _accept:_ WHEN a fraudulent transaction is approved THEN a chargeback label SHALL arrive after a configurable simulated delay
+    - _accept:_ WHEN traffic is sampled into the random control holdout THEN those transactions SHALL be scored but not acted upon, yielding unbiased labels
+    - _verify (test):_ cargo test -p simulator labels
+- [ ] **T035** Evaluation harness (PR-AUC, recall@FPR, precision@N, alert-to-fraud) ← T034
+    - _accept:_ WHEN a model is evaluated on labelled simulation data THEN PR-AUC, recall at a fixed FPR, precision at N, and the alert-to-fraud ratio SHALL be reported
+    - _accept:_ WHERE a metrics report is produced THEN accuracy SHALL NOT appear as a headline metric
+    - _verify (test):_ pytest ml/tests/test_eval.py
+- [ ] **T036** Model registry + champion-challenger + shadow + PSI drift ← T031, T035
+    - _accept:_ WHEN a challenger model is deployed THEN it SHALL shadow-score live traffic without affecting decisions
+    - _accept:_ WHEN feature or score PSI exceeds the configured threshold THEN a drift alert SHALL fire and a retraining trigger SHALL be recorded
+    - _verify (test):_ cargo test -p model registry_shadow
+
+## S4-graph
+- [ ] **T040** Entity resolution → identity graph ← T020
+    - _accept:_ WHEN records share identifiers (device, phone, email, address, card) THEN entity resolution SHALL cluster them into identity-graph entities via normalise → block → match → cluster
+    - _accept:_ WHERE a shared identifier is high-cardinality and weak (e.g. a shared public IP) THEN it SHALL NOT by itself merge distinct entities
+    - _verify (test):_ pytest ml/tests/test_er.py
+- [ ] **T041** Transaction graph construction (temporal, weighted) ← T040
+    - _accept:_ WHEN transactions are processed THEN a directed, time-stamped, weighted transaction graph SHALL be built and updated with amount/count/recency edge attributes
+    - _verify (test):_ cargo test -p graph txn_graph
+- [ ] **T042** Graph features (centrality, community, shortest-path-to-bad) → online store ← T041
+    - _accept:_ WHEN the graph batch runs THEN per-node centrality (PageRank, personalised-PageRank from known-bad), community id/size, and shortest-path-to-bad features SHALL be materialised to the online feature store
+    - _verify (test):_ pytest ml/tests/test_graph_features.py
+- [ ] **T043** Ring + temporal-motif detection (cycles, fan-in/out, scatter-gather) ← T041
+    - _accept:_ WHEN a time-ordered directed cycle or a fan-in→fan-out / scatter-gather motif appears THEN a fraud-ring alert SHALL be raised listing the participating entities and the matched typology
+    - _verify (test):_ pytest ml/tests/test_motifs.py
+- [ ] **T044** Mule-account detection (signature fusion) ← T043, T042
+    - _accept:_ WHEN an account shows fan-in from dispersed sources then fan-out to few destinations, a pass-through ratio near 1, and short dwell time THEN a mule-account alert SHALL be raised
+    - _accept:_ WHEN a dormant account suddenly receives and forwards large funds THEN the dormant-then-active signal SHALL contribute to the mule score
+    - _verify (test):_ cargo test -p graph mule
+
+## S5-compliance
+- [ ] **T050** Sanctions/PEP/adverse-media screening (fuzzy+phonetic, FP reduction) ← T015
+    - _accept:_ WHEN an entity name matches a watchlist by fuzzy/phonetic score above threshold AND a secondary identifier (DOB/nationality/ID) corroborates THEN a screening alert SHALL be raised
+    - _accept:_ WHEN a watchlist delta is ingested THEN the existing customer base SHALL be rescreened in batch and new true matches SHALL alert
+    - _verify (test):_ cargo test -p compliance screening
+- [ ] **T051** AML monitoring rules (typology-tagged R1–R14) ← T020
+    - _accept:_ WHEN sub-threshold deposits cluster just below the CTR threshold within a window THEN a structuring alert tagged with its typology SHALL be raised
+    - _accept:_ WHEN credits arrive from many geographies and debits concentrate to few destinations THEN a funnel-account alert SHALL be raised
+    - _accept:_ WHEN an outbound transfer is matched by an inbound of near-equal size within the round-trip window THEN a round-tripping alert SHALL be raised
+    - _verify (test):_ cargo test -p compliance aml
+- [ ] **T052** Case lifecycle state machine + review queue + four-eyes ← T050, T051
+    - _accept:_ WHEN an alert is created THEN it SHALL enter the case lifecycle (alert → triage → investigate → close/escalate/file-sar) with risk-prioritised ordering in the review queue
+    - _accept:_ WHEN a SAR is approved or filed THEN the checker SHALL be a different analyst from the maker
+    - _verify (test):_ cargo test -p compliance cases
+- [ ] **T053** SAR/STR generation (deadlines, continuing-activity, CTR, tipping-off) ← T052
+    - _accept:_ WHEN a case is dispositioned to file THEN a SAR SHALL be generated with a filing deadline and a continuing-activity follow-up SHALL be scheduled, and the subject SHALL NOT be notified
+    - _accept:_ WHEN cash movement exceeds the CTR threshold THEN a CTR SHALL be produced independently of any suspicion finding
+    - _verify (test):_ cargo test -p compliance sar
+- [ ] **T054** Feedback loop: labels → offline store → retraining trigger ← T052, T036
+    - _accept:_ WHEN an investigator dispositions a case THEN an investigator label SHALL be written to the offline store and feed the retraining dataset
+    - _accept:_ WHEN blocked transactions accumulate THEN reject inference SHALL estimate their outcomes so training is not biased by the engine's own declines
+    - _verify (test):_ pytest ml/tests/test_feedback.py
+- [ ] **T055** Analyst dashboard API + design-brief handoff ← T052, T044
+    - _accept:_ WHEN an analyst opens the queue THEN the API SHALL return risk-prioritised cases with their alerts, evidence, reason codes, and graph links
+    - _accept:_ WHERE the visual layer is built THEN it SHALL be produced via design-creator from a structured design-brief (constraints only, no narrative)
+    - _verify (manual):_ curl the analyst API + design-creator brief review
+
+## S6-verticals-prod
+- [ ] **T060** P2P pack: APP-fraud signals + new-payee + Confirmation of Payee ← T032, T044
+    - _accept:_ WHEN a first payment to a new payee exceeds the payer's historical maximum and the payee is not commonly paid by peers THEN a Confirmation-of-Payee check and a step-up SHALL be triggered
+    - _accept:_ WHERE the P2P pack is loaded THEN the engine core SHALL remain free of P2P-specific logic (it plugs in via the feature/rule/action interfaces)
+    - _verify (test):_ cargo test -p verticals-p2p app_fraud
+- [ ] **T061** P2P: coercion/behavioral signals + holds + recipient-side mule freeze ← T060
+    - _accept:_ WHEN a payment is initiated shortly after an inbound call with segmented-typing / session-dead-time biometrics THEN a hold and a coercion-specific warning SHALL be applied
+    - _accept:_ WHEN the recipient account is scored as a likely mule THEN inbound credit SHALL be held/frozen and a SAR SHALL be raised
+    - _verify (test):_ cargo test -p verticals-p2p coercion
+- [ ] **T062** Crypto pack: on-chain ledger sim + address clustering ← T032
+    - _accept:_ WHEN the on-chain ledger is simulated THEN address clustering SHALL group common-input-ownership addresses while excluding CoinJoin transactions from the merge
+    - _verify (test):_ cargo test -p verticals-crypto clustering
+- [ ] **T063** Crypto: taint tracing (FIFO) + exposure scoring ← T062
+    - _accept:_ WHEN funds flow from a known-bad cluster THEN FIFO taint tracing SHALL compute direct and indirect exposure with no fixed hop cutoff
+    - _accept:_ WHEN a peel-chain or chain-hopping pattern is present THEN it SHALL be detected and contribute to the exposure score
+    - _verify (test):_ cargo test -p verticals-crypto taint
+- [ ] **T064** Crypto: sanctioned-address (date-versioned) + scam-token/phishing/poisoning ← T063
+    - _accept:_ WHEN a transfer touches a sanctioned address as-of the transaction date THEN it SHALL be blocked (and a later delisting SHALL NOT retroactively unblock the past decision)
+    - _accept:_ WHEN a lookalike address (matching prefix/suffix) appears shortly after a real transfer THEN an address-poisoning warning SHALL fire
+    - _accept:_ WHEN a VASP-to-VASP transfer at or above the de-minimis lacks Travel Rule data THEN it SHALL be flagged
+    - _verify (test):_ cargo test -p verticals-crypto sanctions_scam
+- [ ] **T065** Prod-readiness: load test to SLA + backpressure + fail-safe + benchmarks ← T024, T032, T055
+    - _accept:_ WHEN the full engine is load-tested at approximately 20,000 tx/s THEN p99 latency SHALL be under 20 ms
+    - _accept:_ WHEN a dependency (online store or model) is faulted under load THEN fail-safe degradation SHALL hold and the SLA SHALL still be met
+    - _verify (test):_ cargo bench -p engine load_sla && scripts/chaos.sh
+- [ ] **T066** Simulation control dashboard API + design-brief ← T035, T004
+    - _accept:_ WHEN an operator selects a typology scenario THEN the simulation API SHALL inject it and stream live decision and metric updates
+    - _accept:_ WHERE the visual layer is built THEN it SHALL be produced via design-creator from a structured design-brief
+    - _verify (manual):_ drive the sim API + design-creator brief review

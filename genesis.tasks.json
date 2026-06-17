@@ -1,0 +1,1247 @@
+{
+  "project": "node-sec — real-time anti-fraud decision engine",
+  "tasks": [
+    {
+      "id": "T001",
+      "title": "Cargo workspace + crate skeleton",
+      "sprint": "S0-foundation",
+      "status": "done",
+      "dependencies": [],
+      "spec_refs": {
+        "arch:vertical-agnostic-core": "79716631a7ead1cb",
+        "decision:polyglot-rust-python": "41d071525eed73cd",
+        "term:hot-path": "18e4bc425ac97463",
+        "term:in-process-inference": "9ddd3eb2e5d2f412",
+        "term:risk-model": "8969eada9e52aee3"
+      },
+      "acceptance": [
+        "WHEN `cargo build --workspace` is run THEN every crate (domain, engine, ingest, stream, features, rules, model, graph, compliance, simulator) SHALL compile",
+        "WHERE a crate is vertical-specific THEN it SHALL live under a verticals/ pack and the core crates SHALL NOT depend on it"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo build --workspace"
+      },
+      "files": [
+        "Cargo.toml",
+        "crates/*/Cargo.toml",
+        "crates/*/src/lib.rs"
+      ]
+    },
+    {
+      "id": "T002",
+      "title": "Domain types crate (money as integer minor units)",
+      "sprint": "S0-foundation",
+      "status": "todo",
+      "dependencies": [
+        "T001"
+      ],
+      "spec_refs": {
+        "arch:money-integer": "eccbf4035a5a07bd",
+        "term:decision": "d41a50ae7f4f298d",
+        "term:transaction": "32fce68b363b6e70"
+      },
+      "acceptance": [
+        "WHEN a monetary amount is constructed THEN it SHALL be an integer minor-unit value with an explicit currency and SHALL reject floating-point construction",
+        "WHEN a transaction is built THEN it SHALL carry amount+currency, timestamp, and references to the entities involved (card/account/device/ip/merchant/counterparty)"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p domain"
+      },
+      "files": [
+        "crates/domain/src/*"
+      ]
+    },
+    {
+      "id": "T003",
+      "title": "Infra: docker-compose (Redpanda, Redis, Postgres, Prometheus, Grafana)",
+      "sprint": "S0-foundation",
+      "status": "todo",
+      "dependencies": [],
+      "spec_refs": {
+        "decision:event-backbone": "8e00b03f69db09f2",
+        "decision:observability": "1e6c798fe12fed60",
+        "decision:persistence-postgres": "508d5498d0f0de52",
+        "term:async-update-path": "113addb2b5704ec4",
+        "term:audit-log": "23a33ea372b8b941",
+        "term:case-lifecycle": "780387bf205944d2",
+        "term:entity-key": "4b0424bf97e72f21",
+        "term:event-backbone": "20f2e9e51a1e5cbe",
+        "term:label": "c0e46b5a8ad2eb4c",
+        "term:latency-sla": "4758af4cd080d372",
+        "term:observability": "3fe0dd30339cb4d9",
+        "term:transaction": "32fce68b363b6e70"
+      },
+      "acceptance": [
+        "WHEN `docker compose up` is run THEN Redpanda, Redis, Postgres, Prometheus, and Grafana SHALL each become reachable on their documented ports and pass a healthcheck"
+      ],
+      "verify": {
+        "kind": "manual",
+        "handle": "docker compose up -d && scripts/healthcheck.sh"
+      },
+      "files": [
+        "docker-compose.yml",
+        "deploy/*"
+      ]
+    },
+    {
+      "id": "T004",
+      "title": "Synthetic transaction generator v0 (legit baseline → backbone)",
+      "sprint": "S0-foundation",
+      "status": "todo",
+      "dependencies": [
+        "T002",
+        "T003"
+      ],
+      "spec_refs": {
+        "decision:simulation": "d7258d93b0731af4",
+        "term:delayed-label": "05d9d760113c6dcb",
+        "term:event-backbone": "20f2e9e51a1e5cbe",
+        "term:fraud-pattern-injection": "8fbdcf92d2de2686",
+        "term:ground-truth-label": "c361bdee5ffa7c71",
+        "term:simulation-harness": "8b8a95b674e1bee2",
+        "term:synthetic-transaction-generator": "4404c2cb15add546"
+      },
+      "acceptance": [
+        "WHEN the generator runs at a configured rate R THEN it SHALL publish schema-valid transaction events to the event backbone at approximately R per second",
+        "WHERE an entity population size is configured THEN generated transactions SHALL reuse cards/accounts/devices from that population so velocity features are meaningful"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p simulator"
+      },
+      "files": [
+        "crates/simulator/src/*"
+      ]
+    },
+    {
+      "id": "T005",
+      "title": "Wire up CI (build + test + lint, polyglot)",
+      "sprint": "S0-foundation",
+      "status": "todo",
+      "dependencies": [
+        "T001"
+      ],
+      "spec_refs": {
+        "decision:polyglot-rust-python": "41d071525eed73cd",
+        "term:hot-path": "18e4bc425ac97463",
+        "term:in-process-inference": "9ddd3eb2e5d2f412",
+        "term:risk-model": "8969eada9e52aee3"
+      },
+      "acceptance": [
+        "WHEN a push or pull request lands THEN CI SHALL build and test the Rust workspace and run the Python lint/test for the ml/ tree"
+      ],
+      "verify": {
+        "kind": "manual",
+        "handle": "gh workflow run ci.yml"
+      },
+      "files": [
+        ".github/workflows/ci.yml"
+      ]
+    },
+    {
+      "id": "T010",
+      "title": "gRPC decision endpoint + idempotency",
+      "sprint": "S1-card-slice",
+      "status": "todo",
+      "dependencies": [
+        "T002"
+      ],
+      "spec_refs": {
+        "arch:idempotent-decision": "2c76bc88f7fa75f2",
+        "decision:idempotency-determinism": "c7e12ce4e75aae75",
+        "decision:two-path-architecture": "8adf4e50753ef388",
+        "term:async-update-path": "113addb2b5704ec4",
+        "term:audit-log": "23a33ea372b8b941",
+        "term:decision-engine": "793f714c7f1c932f",
+        "term:deterministic-replay": "be1b5869ac14a935",
+        "term:hot-path": "18e4bc425ac97463",
+        "term:idempotency-key": "8b21a34c8a72e72b",
+        "term:two-path-architecture": "360428cb7779dc9e"
+      },
+      "acceptance": [
+        "WHEN a decision request with an idempotency key is received THEN the engine SHALL return a decision",
+        "WHEN a request is retried with a previously seen idempotency key THEN the engine SHALL return the original decision and SHALL NOT produce an additional state update"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p engine idempotency"
+      },
+      "files": [
+        "crates/engine/src/api/*",
+        "proto/decision.proto"
+      ]
+    },
+    {
+      "id": "T011",
+      "title": "Rules engine: hot-reloadable config + blocklists",
+      "sprint": "S1-card-slice",
+      "status": "todo",
+      "dependencies": [
+        "T010"
+      ],
+      "spec_refs": {
+        "decision:rules-as-data": "9c74ef26f79d25cf",
+        "term:blocklist": "ceb6195d8ba6adf7",
+        "term:rule": "710f7f8d3d175499",
+        "term:rules-engine": "12967db2ebd04dc2"
+      },
+      "acceptance": [
+        "WHEN rule configuration is updated on disk THEN the engine SHALL load the new rules without a restart",
+        "WHEN an identifier matches a blocklist THEN the decision SHALL be a hard decline carrying the rule's reason code and typology tag"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p rules reload"
+      },
+      "files": [
+        "crates/rules/src/*",
+        "config/rules/*"
+      ]
+    },
+    {
+      "id": "T012",
+      "title": "Card rules: velocity, card-testing, BIN attack, decline-retry storm",
+      "sprint": "S1-card-slice",
+      "status": "todo",
+      "dependencies": [
+        "T011"
+      ],
+      "spec_refs": {
+        "term:bin-attack": "34e95b8baa18ec7f",
+        "term:card-testing": "a5b777abbcd3fb2b",
+        "term:decline-retry-storm": "a86af8d99fbda4c9",
+        "term:velocity-rule": "c73e4dbf48b01de5"
+      },
+      "acceptance": [
+        "WHEN more than K declined authorisations occur for one card within window W THEN a decline-retry-storm rule SHALL fire",
+        "WHEN many distinct PANs sharing one BIN are tested within window W THEN a BIN-attack rule SHALL fire",
+        "WHEN a burst of low- or zero-value authorisations originates from one device/IP THEN a card-testing rule SHALL fire"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p rules card_velocity"
+      },
+      "files": [
+        "crates/rules/src/card/*"
+      ]
+    },
+    {
+      "id": "T013",
+      "title": "Card rules: impossible-travel, amount-anomaly, MCC, AVS/CVV",
+      "sprint": "S1-card-slice",
+      "status": "todo",
+      "dependencies": [
+        "T011"
+      ],
+      "spec_refs": {
+        "term:amount-anomaly": "3806ebbe658f15fe",
+        "term:avs-cvv-mismatch": "47d38e7054ee3bf8",
+        "term:impossible-travel": "3489afa4785cae2b",
+        "term:mcc": "561ebcb41cb62db5"
+      },
+      "acceptance": [
+        "WHEN two transactions for one card occur in geographies unreachable within the elapsed time THEN an impossible-travel rule SHALL fire",
+        "WHEN the transaction amount z-score against the card baseline exceeds threshold T THEN an amount-anomaly signal SHALL be emitted",
+        "WHEN the merchant MCC is in the high-risk set OR the AVS/CVV check mismatches THEN the corresponding soft signal SHALL be emitted"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p rules card_context"
+      },
+      "files": [
+        "crates/rules/src/card/*"
+      ]
+    },
+    {
+      "id": "T014",
+      "title": "Decisioning v0: risk bands → action + reason codes (rules-only)",
+      "sprint": "S1-card-slice",
+      "status": "todo",
+      "dependencies": [
+        "T012",
+        "T013"
+      ],
+      "spec_refs": {
+        "decision:decisioning-fusion": "427a12d69b983d63",
+        "decision:step-up-depth": "37e0686d16ac210c",
+        "term:action": "b00326bc7e507f69",
+        "term:decision": "d41a50ae7f4f298d",
+        "term:expected-value-decisioning": "1d2e58e1cbcfb076",
+        "term:reason-code": "d6631b81636e5e57",
+        "term:risk-band": "b8af55165d2e21c5",
+        "term:risk-score": "b5b40147ca2c3aaf",
+        "term:rules-engine": "12967db2ebd04dc2",
+        "term:step-up": "cd80494bad23ec32"
+      },
+      "acceptance": [
+        "WHEN rule signals are aggregated into a risk band THEN the engine SHALL select exactly one action from {approve, decline, step-up, review, hold}",
+        "WHEN a decision is produced THEN it SHALL attach the reason codes of the dominant contributing rules"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p engine decision_bands"
+      },
+      "files": [
+        "crates/engine/src/decision/*"
+      ]
+    },
+    {
+      "id": "T015",
+      "title": "Audit log writer (immutable, replayable) → Postgres",
+      "sprint": "S1-card-slice",
+      "status": "todo",
+      "dependencies": [
+        "T010"
+      ],
+      "spec_refs": {
+        "arch:audit-completeness": "fb58d607e7eb8437",
+        "arch:hot-path-read-only": "49052f91fc37e323",
+        "decision:persistence-postgres": "508d5498d0f0de52",
+        "term:audit-log": "23a33ea372b8b941",
+        "term:case-lifecycle": "780387bf205944d2",
+        "term:label": "c0e46b5a8ad2eb4c",
+        "term:transaction": "32fce68b363b6e70"
+      },
+      "acceptance": [
+        "WHEN a decision is emitted THEN exactly one immutable audit record SHALL be written via the async path containing inputs, feature snapshot, rule/model versions, score, and reason codes",
+        "WHEN an audit record is replayed THEN the engine SHALL reproduce the identical decision"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p compliance audit_replay"
+      },
+      "files": [
+        "crates/compliance/src/audit/*",
+        "migrations/*"
+      ]
+    },
+    {
+      "id": "T016",
+      "title": "Hot-path latency harness (rules-only p99)",
+      "sprint": "S1-card-slice",
+      "status": "todo",
+      "dependencies": [
+        "T014",
+        "T015"
+      ],
+      "spec_refs": {
+        "arch:decision-within-budget": "a45674b19af608f7",
+        "decision:latency-sla": "36f20d48d5d8e644",
+        "term:fail-safe-degradation": "fb62567aa97858ac",
+        "term:hot-path": "18e4bc425ac97463",
+        "term:latency-sla": "4758af4cd080d372"
+      },
+      "acceptance": [
+        "WHEN the rules-only decision path is load-tested THEN p50/p99/p999 latency and sustained throughput SHALL be measured and reported"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo bench -p engine latency"
+      },
+      "files": [
+        "crates/engine/benches/*"
+      ]
+    },
+    {
+      "id": "T020",
+      "title": "Stream processor: per-entity windowed aggregates → online store",
+      "sprint": "S2-feature-store",
+      "status": "todo",
+      "dependencies": [
+        "T004"
+      ],
+      "spec_refs": {
+        "arch:partition-by-entity": "de168850e5000b4f",
+        "decision:two-path-architecture": "8adf4e50753ef388",
+        "term:aggregate-feature": "b1fee13c0644b092",
+        "term:async-update-path": "113addb2b5704ec4",
+        "term:decision-engine": "793f714c7f1c932f",
+        "term:hot-path": "18e4bc425ac97463",
+        "term:sliding-window": "ead814b3b1830c94",
+        "term:two-path-architecture": "360428cb7779dc9e"
+      },
+      "acceptance": [
+        "WHEN transaction events stream in THEN per-entity aggregate and velocity features over 1m/5m/1h/24h/7d/30d windows SHALL be maintained and written to the online feature store",
+        "WHERE events are partitioned by entity key THEN per-entity windowed state SHALL be computed within a single partition"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p stream windows"
+      },
+      "files": [
+        "crates/stream/src/*"
+      ]
+    },
+    {
+      "id": "T021",
+      "title": "Online feature store (Redis) + hot-path read integration",
+      "sprint": "S2-feature-store",
+      "status": "todo",
+      "dependencies": [
+        "T020",
+        "T010"
+      ],
+      "spec_refs": {
+        "decision:feature-store": "6a37c8aeb9e2347c",
+        "term:feature-freshness": "3ce0347137315639",
+        "term:feature-store": "9017fd1386d4e487",
+        "term:offline-feature-store": "a214a083ee8c3a83",
+        "term:online-feature-store": "02d252bc36a1ddf4",
+        "term:online-offline-parity": "38f1c8d0affaccc2",
+        "term:point-in-time-correctness": "e8f047aa0b3b1ed1"
+      },
+      "acceptance": [
+        "WHEN the hot path requests features for an entity THEN it SHALL read precomputed aggregates from the online store within the per-call timeout",
+        "WHEN an event updates an aggregate THEN the online store SHALL reflect it within the configured freshness bound"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p features online"
+      },
+      "files": [
+        "crates/features/src/online/*"
+      ]
+    },
+    {
+      "id": "T022",
+      "title": "Feature taxonomy + request-time deviation derivation",
+      "sprint": "S2-feature-store",
+      "status": "todo",
+      "dependencies": [
+        "T021"
+      ],
+      "spec_refs": {
+        "term:aggregate-feature": "b1fee13c0644b092",
+        "term:deviation-feature": "7195d65f2a06ee58",
+        "term:profile-feature": "7fe8811152795c2a",
+        "term:velocity-feature": "83779fc4ecb26301"
+      },
+      "acceptance": [
+        "WHEN a decision is made THEN request-time deviation features (amount ÷ rolling mean, geo distance from usual, z-score) SHALL be derived from looked-up state without a store write"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p features derive"
+      },
+      "files": [
+        "crates/features/src/*"
+      ]
+    },
+    {
+      "id": "T023",
+      "title": "Offline feature store + point-in-time joins + parity check",
+      "sprint": "S2-feature-store",
+      "status": "todo",
+      "dependencies": [
+        "T020"
+      ],
+      "spec_refs": {
+        "arch:feature-parity": "0f66738043b7b571",
+        "decision:feature-store": "6a37c8aeb9e2347c",
+        "term:feature-store": "9017fd1386d4e487",
+        "term:offline-feature-store": "a214a083ee8c3a83",
+        "term:online-feature-store": "02d252bc36a1ddf4",
+        "term:online-offline-parity": "38f1c8d0affaccc2",
+        "term:point-in-time-correctness": "e8f047aa0b3b1ed1"
+      },
+      "acceptance": [
+        "WHEN the offline store materialises a feature for training THEN the join SHALL use only values as-of the event timestamp",
+        "WHEN the same event is scored online and offline THEN the two feature vectors SHALL match within tolerance"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "pytest ml/tests/test_parity.py"
+      },
+      "files": [
+        "crates/features/src/offline/*",
+        "ml/features/*"
+      ]
+    },
+    {
+      "id": "T024",
+      "title": "Fail-safe degradation (feature-store timeout → rules-only)",
+      "sprint": "S2-feature-store",
+      "status": "todo",
+      "dependencies": [
+        "T021"
+      ],
+      "spec_refs": {
+        "arch:decision-within-budget": "a45674b19af608f7",
+        "decision:latency-sla": "36f20d48d5d8e644",
+        "term:fail-safe-degradation": "fb62567aa97858ac",
+        "term:hot-path": "18e4bc425ac97463",
+        "term:latency-sla": "4758af4cd080d372"
+      },
+      "acceptance": [
+        "WHEN the online feature store exceeds its per-call timeout THEN the hot path SHALL fall back to rules-only and SHALL still return a decision within the latency SLA"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p engine failsafe"
+      },
+      "files": [
+        "crates/engine/src/degrade/*"
+      ]
+    },
+    {
+      "id": "T030",
+      "title": "Python training pipeline (LightGBM, cost-sensitive, calibrated)",
+      "sprint": "S3-ml-scoring",
+      "status": "todo",
+      "dependencies": [
+        "T023"
+      ],
+      "spec_refs": {
+        "decision:labels-imbalance": "f453bf9e0476a86c",
+        "decision:ml-dataset-source": "8bdbefe17a4d6ed6",
+        "term:chargeback": "82dfdc98533ebeb1",
+        "term:class-imbalance": "97d45804804e9882",
+        "term:cost-sensitive-learning": "e5e7fbbe6c1854d5",
+        "term:delayed-label": "05d9d760113c6dcb",
+        "term:ground-truth-label": "c361bdee5ffa7c71",
+        "term:label": "c0e46b5a8ad2eb4c",
+        "term:random-control-holdout": "dd619b683a736b99",
+        "term:reject-inference": "44da1babbb4bb3f8",
+        "term:risk-model": "8969eada9e52aee3",
+        "term:score-calibration": "a453057f880231ad",
+        "term:synthetic-transaction-generator": "4404c2cb15add546"
+      },
+      "acceptance": [
+        "WHEN the pipeline trains on labelled data THEN it SHALL produce a LightGBM model trained cost-sensitively and a calibrated score (isotonic or Platt)",
+        "WHEN the calibrated model is evaluated THEN its score SHALL approximate the true fraud probability on a held-out set"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "pytest ml/tests/test_train.py"
+      },
+      "files": [
+        "ml/training/*"
+      ]
+    },
+    {
+      "id": "T031",
+      "title": "ONNX export + in-process inference in Rust",
+      "sprint": "S3-ml-scoring",
+      "status": "todo",
+      "dependencies": [
+        "T030",
+        "T022"
+      ],
+      "spec_refs": {
+        "decision:onnx-inference": "496e501edf2a19a5",
+        "term:in-process-inference": "9ddd3eb2e5d2f412",
+        "term:onnx": "3fa164401c078d92",
+        "term:risk-model": "8969eada9e52aee3"
+      },
+      "acceptance": [
+        "WHEN a trained model is exported to ONNX THEN the engine SHALL load it and score a feature vector in-process with no network call",
+        "WHEN the same feature vector is scored in Python and in the Rust engine THEN the scores SHALL match within tolerance"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p model inference_parity"
+      },
+      "files": [
+        "ml/export/*",
+        "crates/model/src/*"
+      ]
+    },
+    {
+      "id": "T032",
+      "title": "Score fusion + expected-value action selection",
+      "sprint": "S3-ml-scoring",
+      "status": "todo",
+      "dependencies": [
+        "T031",
+        "T014"
+      ],
+      "spec_refs": {
+        "decision:decisioning-fusion": "427a12d69b983d63",
+        "term:action": "b00326bc7e507f69",
+        "term:decision": "d41a50ae7f4f298d",
+        "term:expected-value-decisioning": "1d2e58e1cbcfb076",
+        "term:risk-band": "b8af55165d2e21c5",
+        "term:risk-score": "b5b40147ca2c3aaf",
+        "term:rules-engine": "12967db2ebd04dc2",
+        "term:step-up": "cd80494bad23ec32"
+      },
+      "acceptance": [
+        "WHEN rule signals and the calibrated model score are fused THEN the action SHALL be selected by expected value over the configured cost matrix",
+        "WHEN a hard rule override is present THEN it SHALL win regardless of the model score"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p engine fusion_ev"
+      },
+      "files": [
+        "crates/engine/src/decision/*"
+      ]
+    },
+    {
+      "id": "T033",
+      "title": "SHAP reason codes from the model",
+      "sprint": "S3-ml-scoring",
+      "status": "todo",
+      "dependencies": [
+        "T031"
+      ],
+      "spec_refs": {
+        "decision:explainability": "2b5df9ca27da5d24",
+        "term:reason-code": "d6631b81636e5e57",
+        "term:risk-model": "8969eada9e52aee3"
+      },
+      "acceptance": [
+        "WHEN the model scores a transaction THEN the top contributing features SHALL be mapped to stable, versioned reason codes attached to the decision"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p model reason_codes"
+      },
+      "files": [
+        "crates/model/src/explain/*",
+        "ml/explain/*"
+      ]
+    },
+    {
+      "id": "T034",
+      "title": "Delayed-label simulation + two label streams + random-control holdout",
+      "sprint": "S3-ml-scoring",
+      "status": "todo",
+      "dependencies": [
+        "T030",
+        "T004"
+      ],
+      "spec_refs": {
+        "decision:labels-imbalance": "f453bf9e0476a86c",
+        "term:chargeback": "82dfdc98533ebeb1",
+        "term:class-imbalance": "97d45804804e9882",
+        "term:cost-sensitive-learning": "e5e7fbbe6c1854d5",
+        "term:delayed-label": "05d9d760113c6dcb",
+        "term:label": "c0e46b5a8ad2eb4c",
+        "term:random-control-holdout": "dd619b683a736b99",
+        "term:reject-inference": "44da1babbb4bb3f8",
+        "term:score-calibration": "a453057f880231ad"
+      },
+      "acceptance": [
+        "WHEN a fraudulent transaction is approved THEN a chargeback label SHALL arrive after a configurable simulated delay",
+        "WHEN traffic is sampled into the random control holdout THEN those transactions SHALL be scored but not acted upon, yielding unbiased labels"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p simulator labels"
+      },
+      "files": [
+        "crates/simulator/src/labels/*",
+        "ml/labels/*"
+      ]
+    },
+    {
+      "id": "T035",
+      "title": "Evaluation harness (PR-AUC, recall@FPR, precision@N, alert-to-fraud)",
+      "sprint": "S3-ml-scoring",
+      "status": "todo",
+      "dependencies": [
+        "T034"
+      ],
+      "spec_refs": {
+        "decision:metrics": "70d7f0cb407e3b96",
+        "term:alert-to-fraud-ratio": "bac64e1431543b53",
+        "term:pr-auc": "cd652d241029f3d7",
+        "term:precision-at-n": "5d64b04024afff04",
+        "term:recall-at-fpr": "7faa87ec983088b0"
+      },
+      "acceptance": [
+        "WHEN a model is evaluated on labelled simulation data THEN PR-AUC, recall at a fixed FPR, precision at N, and the alert-to-fraud ratio SHALL be reported",
+        "WHERE a metrics report is produced THEN accuracy SHALL NOT appear as a headline metric"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "pytest ml/tests/test_eval.py"
+      },
+      "files": [
+        "ml/eval/*"
+      ]
+    },
+    {
+      "id": "T036",
+      "title": "Model registry + champion-challenger + shadow + PSI drift",
+      "sprint": "S3-ml-scoring",
+      "status": "todo",
+      "dependencies": [
+        "T031",
+        "T035"
+      ],
+      "spec_refs": {
+        "decision:model-lifecycle": "3b5e796346041e9d",
+        "term:champion-challenger": "81eb80d638fde36c",
+        "term:concept-drift": "b3e50f024a26cab9",
+        "term:model-registry": "8c58f258bcd35bd4",
+        "term:psi": "3e957e3a4f094b71",
+        "term:shadow-scoring": "e4d148dc611b63d2"
+      },
+      "acceptance": [
+        "WHEN a challenger model is deployed THEN it SHALL shadow-score live traffic without affecting decisions",
+        "WHEN feature or score PSI exceeds the configured threshold THEN a drift alert SHALL fire and a retraining trigger SHALL be recorded"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p model registry_shadow"
+      },
+      "files": [
+        "crates/model/src/registry/*",
+        "ml/registry/*"
+      ]
+    },
+    {
+      "id": "T040",
+      "title": "Entity resolution → identity graph",
+      "sprint": "S4-graph",
+      "status": "todo",
+      "dependencies": [
+        "T020"
+      ],
+      "spec_refs": {
+        "decision:graph-backend": "3b0e8e44ca98a233",
+        "decision:graph-subsystem": "4a67ef44c334ee30",
+        "term:entity-resolution": "a5bfb1659fdc7416",
+        "term:fraud-ring": "006cad0b04fad5b0",
+        "term:identity-graph": "eb5e81fa45858fe9",
+        "term:mule-account": "330d7d988afd4cfb",
+        "term:transaction-graph": "a4cdbf488522446f"
+      },
+      "acceptance": [
+        "WHEN records share identifiers (device, phone, email, address, card) THEN entity resolution SHALL cluster them into identity-graph entities via normalise → block → match → cluster",
+        "WHERE a shared identifier is high-cardinality and weak (e.g. a shared public IP) THEN it SHALL NOT by itself merge distinct entities"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "pytest ml/tests/test_er.py"
+      },
+      "files": [
+        "crates/graph/src/er/*",
+        "ml/graph/er/*"
+      ]
+    },
+    {
+      "id": "T041",
+      "title": "Transaction graph construction (temporal, weighted)",
+      "sprint": "S4-graph",
+      "status": "todo",
+      "dependencies": [
+        "T040"
+      ],
+      "spec_refs": {
+        "decision:graph-backend": "3b0e8e44ca98a233",
+        "decision:graph-subsystem": "4a67ef44c334ee30",
+        "term:entity-resolution": "a5bfb1659fdc7416",
+        "term:fraud-ring": "006cad0b04fad5b0",
+        "term:identity-graph": "eb5e81fa45858fe9",
+        "term:mule-account": "330d7d988afd4cfb",
+        "term:transaction-graph": "a4cdbf488522446f"
+      },
+      "acceptance": [
+        "WHEN transactions are processed THEN a directed, time-stamped, weighted transaction graph SHALL be built and updated with amount/count/recency edge attributes"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p graph txn_graph"
+      },
+      "files": [
+        "crates/graph/src/txn/*"
+      ]
+    },
+    {
+      "id": "T042",
+      "title": "Graph features (centrality, community, shortest-path-to-bad) → online store",
+      "sprint": "S4-graph",
+      "status": "todo",
+      "dependencies": [
+        "T041"
+      ],
+      "spec_refs": {
+        "term:community-detection": "0c8412424174f754",
+        "term:pagerank": "e3cde46ffed9906f",
+        "term:shortest-path-to-bad": "bf967da39dcd81e9",
+        "term:transaction-graph": "a4cdbf488522446f"
+      },
+      "acceptance": [
+        "WHEN the graph batch runs THEN per-node centrality (PageRank, personalised-PageRank from known-bad), community id/size, and shortest-path-to-bad features SHALL be materialised to the online feature store"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "pytest ml/tests/test_graph_features.py"
+      },
+      "files": [
+        "ml/graph/features/*",
+        "crates/features/src/graph/*"
+      ]
+    },
+    {
+      "id": "T043",
+      "title": "Ring + temporal-motif detection (cycles, fan-in/out, scatter-gather)",
+      "sprint": "S4-graph",
+      "status": "todo",
+      "dependencies": [
+        "T041"
+      ],
+      "spec_refs": {
+        "term:fan-in-fan-out": "09f11d12870d3bb8",
+        "term:fraud-ring": "006cad0b04fad5b0",
+        "term:temporal-motif": "82a91e71215efb7a"
+      },
+      "acceptance": [
+        "WHEN a time-ordered directed cycle or a fan-in→fan-out / scatter-gather motif appears THEN a fraud-ring alert SHALL be raised listing the participating entities and the matched typology"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "pytest ml/tests/test_motifs.py"
+      },
+      "files": [
+        "ml/graph/motifs/*"
+      ]
+    },
+    {
+      "id": "T044",
+      "title": "Mule-account detection (signature fusion)",
+      "sprint": "S4-graph",
+      "status": "todo",
+      "dependencies": [
+        "T043",
+        "T042"
+      ],
+      "spec_refs": {
+        "term:dormant-then-active": "f35ad057111594fa",
+        "term:fan-in-fan-out": "09f11d12870d3bb8",
+        "term:mule-account": "330d7d988afd4cfb",
+        "term:pass-through-ratio": "c1660b2e1315d545"
+      },
+      "acceptance": [
+        "WHEN an account shows fan-in from dispersed sources then fan-out to few destinations, a pass-through ratio near 1, and short dwell time THEN a mule-account alert SHALL be raised",
+        "WHEN a dormant account suddenly receives and forwards large funds THEN the dormant-then-active signal SHALL contribute to the mule score"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p graph mule"
+      },
+      "files": [
+        "crates/graph/src/mule/*"
+      ]
+    },
+    {
+      "id": "T050",
+      "title": "Sanctions/PEP/adverse-media screening (fuzzy+phonetic, FP reduction)",
+      "sprint": "S5-compliance",
+      "status": "todo",
+      "dependencies": [
+        "T015"
+      ],
+      "spec_refs": {
+        "decision:compliance-layer": "3c222c4ff063d63b",
+        "term:aml-monitoring": "96198e7f11809d45",
+        "term:audit-log": "23a33ea372b8b941",
+        "term:case-lifecycle": "780387bf205944d2",
+        "term:compliance-layer": "2e92df7cbe1d5558",
+        "term:four-eyes": "7d7b2c7d3fbfaf41",
+        "term:name-matching": "8c11d8a2f2a302f2",
+        "term:ofac-sdn": "0dc4a49c5b0be1e6",
+        "term:pep": "fae91d1a9bba6b23",
+        "term:reason-code": "d6631b81636e5e57",
+        "term:sanctions-screening": "987c7ba00f2f020f",
+        "term:sar": "2a34f69e744c6a5d"
+      },
+      "acceptance": [
+        "WHEN an entity name matches a watchlist by fuzzy/phonetic score above threshold AND a secondary identifier (DOB/nationality/ID) corroborates THEN a screening alert SHALL be raised",
+        "WHEN a watchlist delta is ingested THEN the existing customer base SHALL be rescreened in batch and new true matches SHALL alert"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p compliance screening"
+      },
+      "files": [
+        "crates/compliance/src/screening/*"
+      ]
+    },
+    {
+      "id": "T051",
+      "title": "AML monitoring rules (typology-tagged R1–R14)",
+      "sprint": "S5-compliance",
+      "status": "todo",
+      "dependencies": [
+        "T020"
+      ],
+      "spec_refs": {
+        "decision:compliance-layer": "3c222c4ff063d63b",
+        "term:aml-monitoring": "96198e7f11809d45",
+        "term:audit-log": "23a33ea372b8b941",
+        "term:case-lifecycle": "780387bf205944d2",
+        "term:compliance-layer": "2e92df7cbe1d5558",
+        "term:cuckoo-smurfing": "998ff00a2caa9d99",
+        "term:four-eyes": "7d7b2c7d3fbfaf41",
+        "term:funnel-account": "61fdc0c9312e9855",
+        "term:reason-code": "d6631b81636e5e57",
+        "term:round-tripping": "db712f5ce22ba60b",
+        "term:sanctions-screening": "987c7ba00f2f020f",
+        "term:sar": "2a34f69e744c6a5d",
+        "term:structuring": "6c55b226953c198a",
+        "term:typology": "62dd2b7dc7877df9"
+      },
+      "acceptance": [
+        "WHEN sub-threshold deposits cluster just below the CTR threshold within a window THEN a structuring alert tagged with its typology SHALL be raised",
+        "WHEN credits arrive from many geographies and debits concentrate to few destinations THEN a funnel-account alert SHALL be raised",
+        "WHEN an outbound transfer is matched by an inbound of near-equal size within the round-trip window THEN a round-tripping alert SHALL be raised"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p compliance aml"
+      },
+      "files": [
+        "crates/compliance/src/aml/*",
+        "config/aml/*"
+      ]
+    },
+    {
+      "id": "T052",
+      "title": "Case lifecycle state machine + review queue + four-eyes",
+      "sprint": "S5-compliance",
+      "status": "todo",
+      "dependencies": [
+        "T050",
+        "T051"
+      ],
+      "spec_refs": {
+        "arch:maker-checker": "2fcf30677bf6c666",
+        "decision:compliance-layer": "3c222c4ff063d63b",
+        "term:aml-monitoring": "96198e7f11809d45",
+        "term:audit-log": "23a33ea372b8b941",
+        "term:case-lifecycle": "780387bf205944d2",
+        "term:compliance-layer": "2e92df7cbe1d5558",
+        "term:four-eyes": "7d7b2c7d3fbfaf41",
+        "term:reason-code": "d6631b81636e5e57",
+        "term:review-queue": "3182743e8ea0f424",
+        "term:sanctions-screening": "987c7ba00f2f020f",
+        "term:sar": "2a34f69e744c6a5d"
+      },
+      "acceptance": [
+        "WHEN an alert is created THEN it SHALL enter the case lifecycle (alert → triage → investigate → close/escalate/file-sar) with risk-prioritised ordering in the review queue",
+        "WHEN a SAR is approved or filed THEN the checker SHALL be a different analyst from the maker"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p compliance cases"
+      },
+      "files": [
+        "crates/compliance/src/cases/*"
+      ]
+    },
+    {
+      "id": "T053",
+      "title": "SAR/STR generation (deadlines, continuing-activity, CTR, tipping-off)",
+      "sprint": "S5-compliance",
+      "status": "todo",
+      "dependencies": [
+        "T052"
+      ],
+      "spec_refs": {
+        "decision:compliance-layer": "3c222c4ff063d63b",
+        "term:aml-monitoring": "96198e7f11809d45",
+        "term:audit-log": "23a33ea372b8b941",
+        "term:case-lifecycle": "780387bf205944d2",
+        "term:compliance-layer": "2e92df7cbe1d5558",
+        "term:ctr": "a6d3eeeb8d056b7c",
+        "term:four-eyes": "7d7b2c7d3fbfaf41",
+        "term:reason-code": "d6631b81636e5e57",
+        "term:sanctions-screening": "987c7ba00f2f020f",
+        "term:sar": "2a34f69e744c6a5d"
+      },
+      "acceptance": [
+        "WHEN a case is dispositioned to file THEN a SAR SHALL be generated with a filing deadline and a continuing-activity follow-up SHALL be scheduled, and the subject SHALL NOT be notified",
+        "WHEN cash movement exceeds the CTR threshold THEN a CTR SHALL be produced independently of any suspicion finding"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p compliance sar"
+      },
+      "files": [
+        "crates/compliance/src/sar/*"
+      ]
+    },
+    {
+      "id": "T054",
+      "title": "Feedback loop: labels → offline store → retraining trigger",
+      "sprint": "S5-compliance",
+      "status": "todo",
+      "dependencies": [
+        "T052",
+        "T036"
+      ],
+      "spec_refs": {
+        "decision:labels-imbalance": "f453bf9e0476a86c",
+        "decision:model-lifecycle": "3b5e796346041e9d",
+        "term:champion-challenger": "81eb80d638fde36c",
+        "term:chargeback": "82dfdc98533ebeb1",
+        "term:class-imbalance": "97d45804804e9882",
+        "term:concept-drift": "b3e50f024a26cab9",
+        "term:cost-sensitive-learning": "e5e7fbbe6c1854d5",
+        "term:delayed-label": "05d9d760113c6dcb",
+        "term:label": "c0e46b5a8ad2eb4c",
+        "term:model-registry": "8c58f258bcd35bd4",
+        "term:psi": "3e957e3a4f094b71",
+        "term:random-control-holdout": "dd619b683a736b99",
+        "term:reject-inference": "44da1babbb4bb3f8",
+        "term:score-calibration": "a453057f880231ad",
+        "term:shadow-scoring": "e4d148dc611b63d2"
+      },
+      "acceptance": [
+        "WHEN an investigator dispositions a case THEN an investigator label SHALL be written to the offline store and feed the retraining dataset",
+        "WHEN blocked transactions accumulate THEN reject inference SHALL estimate their outcomes so training is not biased by the engine's own declines"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "pytest ml/tests/test_feedback.py"
+      },
+      "files": [
+        "crates/compliance/src/feedback/*",
+        "ml/feedback/*"
+      ]
+    },
+    {
+      "id": "T055",
+      "title": "Analyst dashboard API + design-brief handoff",
+      "sprint": "S5-compliance",
+      "status": "todo",
+      "dependencies": [
+        "T052",
+        "T044"
+      ],
+      "spec_refs": {
+        "decision:dashboards": "bcc4b34d4964cf5c",
+        "term:case-lifecycle": "780387bf205944d2",
+        "term:review-queue": "3182743e8ea0f424",
+        "term:simulation-harness": "8b8a95b674e1bee2"
+      },
+      "acceptance": [
+        "WHEN an analyst opens the queue THEN the API SHALL return risk-prioritised cases with their alerts, evidence, reason codes, and graph links",
+        "WHERE the visual layer is built THEN it SHALL be produced via design-creator from a structured design-brief (constraints only, no narrative)"
+      ],
+      "verify": {
+        "kind": "manual",
+        "handle": "curl the analyst API + design-creator brief review"
+      },
+      "files": [
+        "crates/api/src/analyst/*",
+        "design/analyst-brief.md"
+      ]
+    },
+    {
+      "id": "T060",
+      "title": "P2P pack: APP-fraud signals + new-payee + Confirmation of Payee",
+      "sprint": "S6-verticals-prod",
+      "status": "todo",
+      "dependencies": [
+        "T032",
+        "T044"
+      ],
+      "spec_refs": {
+        "arch:vertical-agnostic-core": "79716631a7ead1cb",
+        "decision:verticals": "bef664454903232f",
+        "term:app-fraud": "695c0c17eef7bd32",
+        "term:card-vertical": "e2f54388ccf3b22a",
+        "term:confirmation-of-payee": "8281eac0e7fa4901",
+        "term:crypto-vertical": "61406253504bb570",
+        "term:p2p-vertical": "268765a9f33bed01",
+        "term:vertical-pack": "2731b884fcd38a91"
+      },
+      "acceptance": [
+        "WHEN a first payment to a new payee exceeds the payer's historical maximum and the payee is not commonly paid by peers THEN a Confirmation-of-Payee check and a step-up SHALL be triggered",
+        "WHERE the P2P pack is loaded THEN the engine core SHALL remain free of P2P-specific logic (it plugs in via the feature/rule/action interfaces)"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p verticals-p2p app_fraud"
+      },
+      "files": [
+        "crates/verticals/p2p/src/*"
+      ]
+    },
+    {
+      "id": "T061",
+      "title": "P2P: coercion/behavioral signals + holds + recipient-side mule freeze",
+      "sprint": "S6-verticals-prod",
+      "status": "todo",
+      "dependencies": [
+        "T060"
+      ],
+      "spec_refs": {
+        "decision:step-up-depth": "37e0686d16ac210c",
+        "term:action": "b00326bc7e507f69",
+        "term:app-fraud": "695c0c17eef7bd32",
+        "term:coercion-signal": "2229c2db6f397315",
+        "term:mule-account": "330d7d988afd4cfb",
+        "term:step-up": "cd80494bad23ec32"
+      },
+      "acceptance": [
+        "WHEN a payment is initiated shortly after an inbound call with segmented-typing / session-dead-time biometrics THEN a hold and a coercion-specific warning SHALL be applied",
+        "WHEN the recipient account is scored as a likely mule THEN inbound credit SHALL be held/frozen and a SAR SHALL be raised"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p verticals-p2p coercion"
+      },
+      "files": [
+        "crates/verticals/p2p/src/*"
+      ]
+    },
+    {
+      "id": "T062",
+      "title": "Crypto pack: on-chain ledger sim + address clustering",
+      "sprint": "S6-verticals-prod",
+      "status": "todo",
+      "dependencies": [
+        "T032"
+      ],
+      "spec_refs": {
+        "decision:crypto-sim-depth": "efd984bc47784015",
+        "decision:verticals": "bef664454903232f",
+        "term:address-clustering": "b361c838669483a9",
+        "term:card-vertical": "e2f54388ccf3b22a",
+        "term:crypto-vertical": "61406253504bb570",
+        "term:on-chain-ledger": "886969e197606676",
+        "term:p2p-vertical": "268765a9f33bed01",
+        "term:taint-tracing": "6ce0dfbcffaf2612",
+        "term:vertical-pack": "2731b884fcd38a91"
+      },
+      "acceptance": [
+        "WHEN the on-chain ledger is simulated THEN address clustering SHALL group common-input-ownership addresses while excluding CoinJoin transactions from the merge"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p verticals-crypto clustering"
+      },
+      "files": [
+        "crates/verticals/crypto/src/*"
+      ]
+    },
+    {
+      "id": "T063",
+      "title": "Crypto: taint tracing (FIFO) + exposure scoring",
+      "sprint": "S6-verticals-prod",
+      "status": "todo",
+      "dependencies": [
+        "T062"
+      ],
+      "spec_refs": {
+        "term:chain-hopping": "592f34b3bce374e4",
+        "term:exposure-scoring": "6f4be1c3a202b65f",
+        "term:mixer": "77547e33876c5e2a",
+        "term:peel-chain": "2070f9ad9ce5c96b",
+        "term:taint-tracing": "6ce0dfbcffaf2612"
+      },
+      "acceptance": [
+        "WHEN funds flow from a known-bad cluster THEN FIFO taint tracing SHALL compute direct and indirect exposure with no fixed hop cutoff",
+        "WHEN a peel-chain or chain-hopping pattern is present THEN it SHALL be detected and contribute to the exposure score"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p verticals-crypto taint"
+      },
+      "files": [
+        "crates/verticals/crypto/src/*"
+      ]
+    },
+    {
+      "id": "T064",
+      "title": "Crypto: sanctioned-address (date-versioned) + scam-token/phishing/poisoning",
+      "sprint": "S6-verticals-prod",
+      "status": "todo",
+      "dependencies": [
+        "T063"
+      ],
+      "spec_refs": {
+        "term:address-poisoning": "bba4188a69e430ad",
+        "term:approval-phishing": "4adb9c810524abdc",
+        "term:sanctioned-address": "ebdb91b0830ba31a",
+        "term:scam-token": "c38524ee5c63ff33",
+        "term:travel-rule": "cc893be8334142ca"
+      },
+      "acceptance": [
+        "WHEN a transfer touches a sanctioned address as-of the transaction date THEN it SHALL be blocked (and a later delisting SHALL NOT retroactively unblock the past decision)",
+        "WHEN a lookalike address (matching prefix/suffix) appears shortly after a real transfer THEN an address-poisoning warning SHALL fire",
+        "WHEN a VASP-to-VASP transfer at or above the de-minimis lacks Travel Rule data THEN it SHALL be flagged"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo test -p verticals-crypto sanctions_scam"
+      },
+      "files": [
+        "crates/verticals/crypto/src/*"
+      ]
+    },
+    {
+      "id": "T065",
+      "title": "Prod-readiness: load test to SLA + backpressure + fail-safe + benchmarks",
+      "sprint": "S6-verticals-prod",
+      "status": "todo",
+      "dependencies": [
+        "T024",
+        "T032",
+        "T055"
+      ],
+      "spec_refs": {
+        "arch:decision-within-budget": "a45674b19af608f7",
+        "decision:latency-sla": "36f20d48d5d8e644",
+        "decision:observability": "1e6c798fe12fed60",
+        "term:fail-safe-degradation": "fb62567aa97858ac",
+        "term:hot-path": "18e4bc425ac97463",
+        "term:latency-sla": "4758af4cd080d372",
+        "term:observability": "3fe0dd30339cb4d9"
+      },
+      "acceptance": [
+        "WHEN the full engine is load-tested at approximately 20,000 tx/s THEN p99 latency SHALL be under 20 ms",
+        "WHEN a dependency (online store or model) is faulted under load THEN fail-safe degradation SHALL hold and the SLA SHALL still be met"
+      ],
+      "verify": {
+        "kind": "test",
+        "handle": "cargo bench -p engine load_sla && scripts/chaos.sh"
+      },
+      "files": [
+        "benches/*",
+        "deploy/*",
+        "scripts/chaos.sh"
+      ]
+    },
+    {
+      "id": "T066",
+      "title": "Simulation control dashboard API + design-brief",
+      "sprint": "S6-verticals-prod",
+      "status": "todo",
+      "dependencies": [
+        "T035",
+        "T004"
+      ],
+      "spec_refs": {
+        "decision:dashboards": "bcc4b34d4964cf5c",
+        "decision:simulation": "d7258d93b0731af4",
+        "term:delayed-label": "05d9d760113c6dcb",
+        "term:fraud-pattern-injection": "8fbdcf92d2de2686",
+        "term:ground-truth-label": "c361bdee5ffa7c71",
+        "term:review-queue": "3182743e8ea0f424",
+        "term:simulation-harness": "8b8a95b674e1bee2",
+        "term:synthetic-transaction-generator": "4404c2cb15add546"
+      },
+      "acceptance": [
+        "WHEN an operator selects a typology scenario THEN the simulation API SHALL inject it and stream live decision and metric updates",
+        "WHERE the visual layer is built THEN it SHALL be produced via design-creator from a structured design-brief"
+      ],
+      "verify": {
+        "kind": "manual",
+        "handle": "drive the sim API + design-creator brief review"
+      },
+      "files": [
+        "crates/api/src/sim/*",
+        "design/sim-brief.md"
+      ]
+    }
+  ]
+}
