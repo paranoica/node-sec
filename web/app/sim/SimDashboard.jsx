@@ -14,22 +14,55 @@ function useReducedMotion() {
 }
 
 // ---- the hero: a live p99 × throughput plane with the SLA drawn as a hard L-shaped wall ----
-function SlaWall({ f, trail }) {
-  const W = 600, H = 340, PADL = 46, PADB = 30, PADT = 16, PADR = 18;
+// The operating point + its trail are driven by requestAnimationFrame (imperative SVG attrs, not
+// React state) so the dot eases toward each new target and the comet-tail line is laid down in real
+// time as it moves — never a teleport that the trail only catches up to after it lands.
+function SlaWall({ f, seed, reduced }) {
+  const W = 600, H = 340, PADB = 30, PADT = 16, PADL = 46, PADR = 18;
   const pw = W - PADL - PADR, ph = H - PADT - PADB;
   const sx = (tps) => PADL + (Math.min(tps, TPS_MAX) / TPS_MAX) * pw;
   const sy = (ms) => PADT + ph - (Math.min(ms, P99_MAX) / P99_MAX) * ph;
   const cornerX = sx(SLA.tps), cornerY = sy(SLA.p99), bottom = PADT + ph;
-  const px = sx(f.admitted), py = sy(f.p99);
-  const danger = f.degrade || f.p99 >= SLA.p99;
   const xticks = [5000, 10000, 15000, 20000, 25000];
   const yticks = [10, 20, 30];
-  const pts = trail.map((p) => `${sx(p.tps).toFixed(1)},${sy(p.p99).toFixed(1)}`).join(" ");
+
+  const dotRef = useRef(null), haloRef = useRef(null), trailRef = useRef(null);
+  const pos = useRef({ tps: f.admitted, p99: f.p99 });
+  const pts = useRef(seed.map((p) => ({ tps: p.tps, p99: p.p99 })));
+  const target = useRef({ tps: f.admitted, p99: f.p99, danger: false });
+  useEffect(() => { target.current = { tps: f.admitted, p99: f.p99, danger: f.degrade || f.p99 >= SLA.p99 }; }, [f]);
+
+  useEffect(() => {
+    if (reduced) return;
+    let raf;
+    const render = () => {
+      const t = target.current, p = pos.current;
+      p.tps += (t.tps - p.tps) * 0.16; // critically-damped ease toward the live target
+      p.p99 += (t.p99 - p.p99) * 0.16;
+      const px = sx(p.tps), py = sy(p.p99);
+      const arr = pts.current, last = arr[arr.length - 1];
+      if (!last || Math.abs(sx(last.tps) - px) > 0.5 || Math.abs(sy(last.p99) - py) > 0.5) {
+        arr.push({ tps: p.tps, p99: p.p99 });
+        if (arr.length > 220) arr.splice(0, arr.length - 220);
+      }
+      trailRef.current?.setAttribute("points", arr.map((q) => `${sx(q.tps).toFixed(1)},${sy(q.p99).toFixed(1)}`).join(" "));
+      for (const r of [dotRef.current, haloRef.current]) {
+        if (!r) continue;
+        r.setAttribute("cx", px.toFixed(1)); r.setAttribute("cy", py.toFixed(1));
+        r.classList.toggle("danger", t.danger);
+      }
+      raf = requestAnimationFrame(render);
+    };
+    raf = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(raf);
+  }, [reduced]);
+
+  const danger0 = f.degrade || f.p99 >= SLA.p99;
+  const px0 = sx(f.admitted), py0 = sy(f.p99);
+  const initPts = pts.current.map((q) => `${sx(q.tps).toFixed(1)},${sy(q.p99).toFixed(1)}`).join(" ");
   return (
-    <svg className="plane" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Operating point ${fmtInt(f.admitted)} tx/s at p99 ${f.p99} ms; SLA wall 20k tx/s, 20 ms${danger ? "; degraded" : ""}`}>
-      {/* safe zone (inside the wall) */}
+    <svg className="plane" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Operating point ${fmtInt(f.admitted)} tx/s at p99 ${f.p99} ms; SLA wall 20k tx/s, 20 ms${danger0 ? "; degraded" : ""}`}>
       <rect x={PADL} y={cornerY} width={cornerX - PADL} height={bottom - cornerY} className="safe" />
-      {/* gridlines + axis labels */}
       {xticks.map((t) => (
         <g key={`x${t}`}>
           <line x1={sx(t)} y1={PADT} x2={sx(t)} y2={bottom} className="grid" />
@@ -43,13 +76,11 @@ function SlaWall({ f, trail }) {
         </g>
       ))}
       <text x={14} y={PADT + 4} className="axcap" transform={`rotate(-90 14 ${PADT + 4})`} textAnchor="end">p99 ms</text>
-      {/* the SLA wall: top edge (p99=20) + right edge (tps=20k) of the safe box */}
       <path className="wall" d={`M${PADL} ${cornerY} H${cornerX} V${bottom}`} />
       <text x={cornerX - 8} y={cornerY - 7} className="walllbl" textAnchor="end">SLA · p99 &lt; 20ms @ 20k</text>
-      {/* live trail + current operating point */}
-      <polyline className="trail" points={pts} />
-      <circle className={`pt-halo${danger ? " danger" : ""}`} cx={px} cy={py} r="12" />
-      <circle className={`pt${danger ? " danger" : ""}`} cx={px} cy={py} r="5.5" />
+      <polyline ref={trailRef} className="trail" points={initPts} />
+      <circle ref={haloRef} className={`pt-halo${danger0 ? " danger" : ""}`} cx={px0} cy={py0} r="12" />
+      <circle ref={dotRef} className={`pt${danger0 ? " danger" : ""}`} cx={px0} cy={py0} r="5.5" />
     </svg>
   );
 }
@@ -110,26 +141,23 @@ function Pipeline({ f }) {
 
 export function SimDashboard() {
   const reduced = useReducedMotion();
-  const [ctl, setCtl] = useState({ running: true, targetTps: 12000, scenario: "baseline", fault: false });
-  const [f, setF] = useState(() => frame({ running: true, targetTps: 12000, scenario: "baseline", fault: false }, 0));
-  const [trail, setTrail] = useState(() => seedTrail({ running: true, targetTps: 12000, scenario: "baseline", fault: false }));
+  const INIT = { running: true, targetTps: 12000, scenario: "baseline", fault: false };
+  const [ctl, setCtl] = useState(INIT);
+  const [f, setF] = useState(() => frame(INIT, 0));
   const [elapsed, setElapsed] = useState(0);
+  const seedRef = useRef(seedTrail(INIT));
   const ctlRef = useRef(ctl);
   ctlRef.current = ctl;
 
-  // live telemetry tick — synthesises the SSE frame stream
+  // live telemetry tick — synthesises the SSE frame stream (the trail/point is rAF-driven in SlaWall)
   useEffect(() => {
     if (reduced) return;
     const iv = setInterval(() => {
       if (document.hidden) return;
       const c = ctlRef.current;
-      const jit = Math.random() * 2 - 1;
-      const nf = frame(c, jit);
+      const nf = frame(c, Math.random() * 2 - 1);
       setF(nf);
-      if (c.running) {
-        setTrail((prev) => [...prev, { tps: nf.admitted, p99: nf.p99 }].slice(-48));
-        setElapsed((e) => e + 1);
-      }
+      if (c.running) setElapsed((e) => e + 1);
     }, 820);
     return () => clearInterval(iv);
   }, [reduced]);
@@ -180,7 +208,7 @@ export function SimDashboard() {
               <small>headroom to the wall</small>
             </div>
           </div>
-          <SlaWall f={f} trail={trail} />
+          <SlaWall f={f} seed={seedRef.current} reduced={reduced} />
         </section>
         <aside className="side" aria-label="Live vitals"><Vitals f={f} /></aside>
       </div>

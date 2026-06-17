@@ -328,8 +328,8 @@ ul.list{list-style:none; margin:0; padding:0}
 .plane .wall{stroke:var(--down); stroke-width:1.6; stroke-dasharray:5 4; fill:none; opacity:.85}
 .plane .walllbl{fill:var(--down); font-size:10px; opacity:.9; font-family:var(--mono)}
 .plane .trail{fill:none; stroke:var(--accent); stroke-width:1.6; opacity:.4; stroke-linejoin:round; stroke-linecap:round}
-.plane .pt{fill:var(--accent); transition:cx .3s linear, cy .3s linear}
-.plane .pt-halo{fill:var(--accent); opacity:.22; transition:cx .3s linear, cy .3s linear}
+.plane .pt{fill:var(--accent)}
+.plane .pt-halo{fill:var(--accent); opacity:.22}
 .plane .pt.danger, .plane .pt-halo.danger{fill:var(--down)}
 
 /* vitals column */
