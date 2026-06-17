@@ -51,7 +51,7 @@ impl fmt::Display for CaseError {
 impl std::error::Error for CaseError {}
 
 /// A compliance case following the alert through to disposition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Case {
     /// Stable case id.
     pub id: String,

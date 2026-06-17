@@ -8,8 +8,11 @@ pub mod aml;
 pub mod audit;
 pub mod cases;
 pub mod feedback;
+pub mod pipeline;
 pub mod sar;
 pub mod screening;
+
+pub use pipeline::{ComplianceInput, ComplianceOutcome, CompliancePipeline};
 
 pub use aml::{evaluate as evaluate_aml, AmlAlert, AmlConfig, AmlTransaction, Direction};
 pub use audit::{
