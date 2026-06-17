@@ -348,7 +348,7 @@
       "id": "T020",
       "title": "Stream processor: per-entity windowed aggregates → online store",
       "sprint": "S2-feature-store",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T004"
       ],

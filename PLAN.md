@@ -54,7 +54,7 @@
     - _verify (test):_ cargo bench -p engine latency
 
 ## S2-feature-store
-- [ ] **T020** Stream processor: per-entity windowed aggregates → online store ← T004
+- [x] **T020** Stream processor: per-entity windowed aggregates → online store ← T004
     - _accept:_ WHEN transaction events stream in THEN per-entity aggregate and velocity features over 1m/5m/1h/24h/7d/30d windows SHALL be maintained and written to the online feature store
     - _accept:_ WHERE events are partitioned by entity key THEN per-entity windowed state SHALL be computed within a single partition
     - _verify (test):_ cargo test -p stream windows
