@@ -24,18 +24,23 @@ pub struct RequestFeatures {
 /// Number of model input features — must match `ml` `FEATURE_NAMES` and the ONNX graph's input.
 pub const MODEL_FEATURE_LEN: usize = 8;
 
+/// MCCs treated as high-risk for the model's `high_risk_mcc` feature: gambling (7995), wire/money
+/// transfer (4829), and quasi-cash / crypto (6051). Mirrors the rules' MCC-risk intent.
+const HIGH_RISK_MCC: [u32; 3] = [7995, 4829, 6051];
+
 /// Assemble the model input vector in the canonical `FEATURE_NAMES` order from the transaction and
 /// the entity's online aggregates:
 /// `[velocity_5m, velocity_1h, velocity_24h, amount_to_mean_ratio, amount_z_score,
 ///   distinct_devices_24h, decline_rate_1h, high_risk_mcc]`.
 ///
-/// The last three are `0.0` for now: the online aggregates carry no device cardinality or decline
-/// counts, and the request schema does not yet carry MCC. They light up with the
-/// feature/request-schema enrichment work — until then the model scores on the five it has.
+/// `high_risk_mcc` is now derived from the (enriched) transaction MCC. `distinct_devices_24h` and
+/// `decline_rate_1h` are still `0.0`: the online aggregates carry no device cardinality or decline
+/// counts yet — they light up when those aggregates are added; until then the model scores on six.
 #[must_use]
 pub fn model_vector(txn: &Transaction, aggregates: &WindowAggregates) -> Vec<f32> {
     let dev = derive(txn, aggregates);
     let velocity = |label: &str| aggregates.get(label).map_or(0, |s| s.count) as f32;
+    let high_risk_mcc = txn.mcc.is_some_and(|mcc| HIGH_RISK_MCC.contains(&mcc));
     vec![
         velocity("5m"),
         velocity("1h"),
@@ -44,7 +49,7 @@ pub fn model_vector(txn: &Transaction, aggregates: &WindowAggregates) -> Vec<f32
         dev.amount_z_score as f32,
         0.0, // distinct_devices_24h — not in the online aggregates yet
         0.0, // decline_rate_1h — not in the online aggregates yet
-        0.0, // high_risk_mcc — request schema carries no MCC yet
+        f32::from(u8::from(high_risk_mcc)),
     ]
 }
 
@@ -158,6 +163,15 @@ mod tests {
         assert_eq!(v[3], 1.0); // amount_to_mean_ratio (neutral)
         assert_eq!(v[4], 0.0); // amount_z_score (neutral)
         assert_eq!(&v[5..8], &[0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn model_vector_sets_high_risk_mcc_from_transaction() {
+        // A gambling MCC lights the high_risk_mcc feature; a grocery MCC does not.
+        let gambling = model_vector(&txn(1_000).with_mcc(7995), &WindowAggregates::default());
+        assert_eq!(gambling[7], 1.0);
+        let grocery = model_vector(&txn(1_000).with_mcc(5411), &WindowAggregates::default());
+        assert_eq!(grocery[7], 0.0);
     }
 
     #[test]
