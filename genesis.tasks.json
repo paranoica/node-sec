@@ -1182,7 +1182,7 @@
       "id": "T065",
       "title": "Prod-readiness: load test to SLA + backpressure + fail-safe + benchmarks",
       "sprint": "S6-verticals-prod",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T024",
         "T032",

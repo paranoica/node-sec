@@ -169,7 +169,7 @@
     - _accept:_ WHEN a lookalike address (matching prefix/suffix) appears shortly after a real transfer THEN an address-poisoning warning SHALL fire
     - _accept:_ WHEN a VASP-to-VASP transfer at or above the de-minimis lacks Travel Rule data THEN it SHALL be flagged
     - _verify (test):_ cargo test -p verticals-crypto sanctions_scam
-- [ ] **T065** Prod-readiness: load test to SLA + backpressure + fail-safe + benchmarks ← T024, T032, T055
+- [x] **T065** Prod-readiness: load test to SLA + backpressure + fail-safe + benchmarks ← T024, T032, T055
     - _accept:_ WHEN the full engine is load-tested at approximately 20,000 tx/s THEN p99 latency SHALL be under 20 ms
     - _accept:_ WHEN a dependency (online store or model) is faulted under load THEN fail-safe degradation SHALL hold and the SLA SHALL still be met
     - _verify (test):_ cargo bench -p engine load_sla && scripts/chaos.sh
