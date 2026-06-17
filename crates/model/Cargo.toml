@@ -9,6 +9,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+domain = { path = "../domain" }
 ort = "=2.0.0-rc.12"
 
 [dev-dependencies]
