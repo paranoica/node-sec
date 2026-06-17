@@ -143,7 +143,7 @@
     - _accept:_ WHEN an investigator dispositions a case THEN an investigator label SHALL be written to the offline store and feed the retraining dataset
     - _accept:_ WHEN blocked transactions accumulate THEN reject inference SHALL estimate their outcomes so training is not biased by the engine's own declines
     - _verify (test):_ pytest ml/tests/test_feedback.py
-- [ ] **T055** Analyst dashboard API + design-brief handoff ← T052, T044
+- [x] **T055** Analyst dashboard API + design-brief handoff ← T052, T044
     - _accept:_ WHEN an analyst opens the queue THEN the API SHALL return risk-prioritised cases with their alerts, evidence, reason codes, and graph links
     - _accept:_ WHERE the visual layer is built THEN it SHALL be produced via design-creator from a structured design-brief (constraints only, no narrative)
     - _verify (manual):_ curl the analyst API + design-creator brief review

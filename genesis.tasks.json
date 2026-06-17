@@ -1010,7 +1010,7 @@
       "id": "T055",
       "title": "Analyst dashboard API + design-brief handoff",
       "sprint": "S5-compliance",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T052",
         "T044"
