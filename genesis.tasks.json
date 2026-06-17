@@ -433,7 +433,7 @@
       "id": "T023",
       "title": "Offline feature store + point-in-time joins + parity check",
       "sprint": "S2-feature-store",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T020"
       ],

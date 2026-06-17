@@ -65,7 +65,7 @@
 - [x] **T022** Feature taxonomy + request-time deviation derivation ← T021
     - _accept:_ WHEN a decision is made THEN request-time deviation features (amount ÷ rolling mean, geo distance from usual, z-score) SHALL be derived from looked-up state without a store write
     - _verify (test):_ cargo test -p features derive
-- [ ] **T023** Offline feature store + point-in-time joins + parity check ← T020
+- [x] **T023** Offline feature store + point-in-time joins + parity check ← T020
     - _accept:_ WHEN the offline store materialises a feature for training THEN the join SHALL use only values as-of the event timestamp
     - _accept:_ WHEN the same event is scored online and offline THEN the two feature vectors SHALL match within tolerance
     - _verify (test):_ pytest ml/tests/test_parity.py
