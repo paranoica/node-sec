@@ -24,3 +24,7 @@ tonic-build = "0.12"
 [[bench]]
 name = "latency"
 harness = false
+
+[[bench]]
+name = "load_sla"
+harness = false

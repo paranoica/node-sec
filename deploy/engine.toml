@@ -1,0 +1,34 @@
+# Hot-path engine deployment config (T065; D-003 latency SLA, D-006 online store).
+#
+# Backpressure + fail-safe knobs that keep the decision path inside the 20 ms p99 SLA under load.
+# Values are the production defaults; the load test (`cargo bench -p engine load_sla`) and chaos
+# test (`scripts/chaos.sh`) validate them.
+
+[sla]
+# Hot-path p99 decision budget. Breaching this is an SLO violation, not a soft target.
+p99_budget_ms = 20
+target_tps = 20000
+
+[feature_store]
+# Per-call online-read budget. Deliberately far below the end-to-end SLA so a slow/faulted store
+# degrades to the rules-only decision within budget rather than blocking the hot path.
+read_budget_ms = 5
+# On read timeout/error: degrade to rules-only and tag DEGRADED_RULES_ONLY (never block, never fail
+# open to APPROVE).
+on_fault = "degrade_rules_only"
+
+[backpressure]
+# Bounded admission: requests in flight beyond this are shed rather than queued unboundedly, so tail
+# latency stays bounded under overload.
+max_in_flight = 4096
+# Accept queue depth before shedding. A bounded queue is what stops a backlog from blowing the p99.
+accept_queue = 1024
+# What to do when the queue is full: reject with a retriable status (the caller's timeout budget is
+# shorter than ours; a fast reject beats a slow timeout).
+on_overload = "reject_retriable"
+
+[runtime]
+# Worker threads for the async runtime; size to cores in the target pod.
+worker_threads = 8
+# Blocking pool for online-store reads (offloaded so a slow read never stalls a runtime worker).
+max_blocking_threads = 512

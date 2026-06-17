@@ -17,6 +17,8 @@ pub enum StoreError {
     Redis(redis::RedisError),
     /// (De)serialisation error.
     Serde(serde_json::Error),
+    /// A generic backend failure (the store is unavailable/faulted).
+    Backend(String),
 }
 
 impl fmt::Display for StoreError {
@@ -24,6 +26,7 @@ impl fmt::Display for StoreError {
         match self {
             StoreError::Redis(e) => write!(f, "feature store redis error: {e}"),
             StoreError::Serde(e) => write!(f, "feature store serde error: {e}"),
+            StoreError::Backend(msg) => write!(f, "feature store backend error: {msg}"),
         }
     }
 }
