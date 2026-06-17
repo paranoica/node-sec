@@ -146,6 +146,93 @@ ul.list{list-style:none; margin:0; padding:0}
 .glink .wbar i{display:block; height:100%; background:var(--accent); width:calc(var(--w)*100%)}
 .none{color:var(--faint); font-size:12px}
 
+/* ---- workflow: status banner, actions, four-eyes, notes ---- */
+.banner{display:flex; align-items:center; flex-wrap:wrap; gap:5px 9px; padding:9px 11px; border-radius:var(--r-md); font-size:11.5px; margin-bottom:4px}
+.banner svg{width:15px; height:15px; flex:none}
+.banner b{font-weight:600}
+.banner span{width:100%; padding-left:24px; font-size:11px; opacity:.82}
+.banner.fraud{background:#e5544b1c; color:#f0a79f}
+.banner.pend{background:var(--accent-dim); color:var(--accent)}
+.banner.esc{background:#3a47592e; color:var(--muted)}
+.banner.clear{background:#27313f; color:var(--muted)}
+.ownerchip{display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:2px}
+.ownerchip svg{width:14px; height:14px; color:var(--accent)}
+.owntick{display:inline-block; width:5px; height:5px; border-radius:50%; background:var(--accent); margin-left:7px; vertical-align:middle}
+.row.closed .meter .fill{filter:saturate(.3) opacity(.55)}
+.row.closed .num, .row.closed .sid{color:var(--muted)}
+
+.dactions{position:sticky; bottom:0; display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  margin:16px -18px 0; padding:13px 18px; background:var(--surface); border-top:1px solid var(--line)}
+.foureyes{flex-basis:100%; margin:1px 0 0; font-size:10.5px; line-height:1.45; color:var(--faint)}
+.foureyes b{color:var(--muted)}
+
+.btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:var(--r-md);
+  border:1px solid var(--line); background:var(--raised); color:var(--text); font-size:12px; cursor:pointer;
+  transition:background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease)}
+.btn svg{width:14px; height:14px}
+.btn:hover{background:var(--surface); border-color:var(--line-strong)}
+.btn:active{background:var(--bg)}
+.btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.btn:disabled{opacity:.45; cursor:not-allowed}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#10151b; font-weight:600}
+.btn.primary:hover{background:#ffb53e}
+.btn.danger{border-color:#e5544b59; color:#f0a79f}
+.btn.danger:hover{background:#e5544b1c; border-color:#e5544b}
+.btn.assign{border-color:var(--accent); color:var(--accent)}
+.btn.assign:hover{background:var(--accent-dim)}
+.btn.on{border-color:var(--accent); color:var(--accent); background:var(--accent-dim)}
+.btn.ghost{background:transparent}
+.btn.sm{height:30px; padding:0 11px; font-size:11px}
+
+.audit{font-size:9px; color:var(--faint); letter-spacing:.04em; text-transform:none; font-weight:500}
+.note{padding:7px 0; border-bottom:1px solid var(--line)}
+.note:first-of-type{padding-top:0}
+.note .nmeta{display:block; font-size:9.5px; color:var(--faint); letter-spacing:.05em; text-transform:uppercase; margin-bottom:1px}
+.note.sys .nmeta{color:var(--accent)}
+.note .ntext{font-size:12.5px; color:var(--text)}
+.noteform{display:flex; gap:8px; margin-top:11px}
+.noteform input{flex:1; min-width:0; appearance:none; height:32px; padding:0 11px; border-radius:var(--r-md);
+  border:1px solid var(--line); background:var(--raised); color:var(--text); font-size:12px; outline:none;
+  transition:border-color var(--t-fast) var(--ease)}
+.noteform input::placeholder{color:var(--faint)}
+.noteform input:focus{border-color:var(--accent)}
+
+/* ---- queue filter bar ---- */
+.filterbar{display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 14px;
+  border-bottom:1px solid var(--line); background:var(--surface)}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; flex:none}
+.seg button{appearance:none; border:0; border-right:1px solid var(--line); background:transparent; color:var(--muted);
+  font-size:11px; padding:5px 12px; cursor:pointer; transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease)}
+.seg button:last-child{border-right:0}
+.seg button:hover:not(.on){background:var(--raised); color:var(--text)}
+.seg button.on{background:var(--accent-dim); color:var(--accent)}
+.seg button:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+.fspacer{flex:1; min-width:8px}
+.fsearch{display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 9px; border-radius:var(--r-md);
+  border:1px solid var(--line); background:var(--raised); transition:border-color var(--t-fast) var(--ease)}
+.fsearch svg{width:13px; height:13px; color:var(--faint); flex:none}
+.fsearch:focus-within{border-color:var(--accent)}
+.fsearch input{appearance:none; border:0; background:transparent; color:var(--text); font-size:12px; outline:none; width:130px; max-width:38vw}
+.fsearch input::placeholder{color:var(--faint)}
+/* custom dropdown (own listbox — a native <select> can't style its open option list) */
+.dropdown{position:relative; flex:none}
+.ddbtn{display:inline-flex; align-items:center; justify-content:space-between; gap:10px; height:30px; min-width:118px;
+  padding:0 9px 0 11px; border-radius:var(--r-md); border:1px solid var(--line); background:var(--raised);
+  color:var(--text); font-size:12px; cursor:pointer; transition:border-color var(--t-fast) var(--ease)}
+.ddbtn:hover{border-color:var(--line-strong)}
+.ddbtn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.ddbtn svg{width:11px; height:11px; color:var(--faint); flex:none; transition:transform var(--t-fast) var(--ease)}
+.dropdown.open .ddbtn svg{transform:rotate(180deg)}
+.ddlist{position:absolute; top:calc(100% + 5px); right:0; z-index:40; min-width:152px; margin:0; padding:5px; list-style:none;
+  background:var(--raised); border:1px solid var(--line-strong); border-radius:var(--r-md);
+  box-shadow:0 16px 34px -14px rgba(0,0,0,.66); animation:ddin var(--t-fast) var(--ease)}
+@keyframes ddin{from{opacity:0; transform:translateY(-4px)}to{opacity:1; transform:none}}
+.ddopt{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 9px; border-radius:var(--r-sm);
+  font-size:12px; color:var(--muted); cursor:pointer}
+.ddopt.active{background:var(--surface); color:var(--text)}
+.ddopt.sel{color:var(--accent)}
+.ddopt svg{width:13px; height:13px; flex:none}
+
 /* ---- skeleton ---- */
 .sk{height:var(--row-h); border-bottom:1px solid var(--line); display:flex; align-items:center; gap:14px; padding:0 14px}
 .sk i{display:block; height:7px; border-radius:var(--r-xs); background:var(--track); position:relative; overflow:hidden}
