@@ -1069,7 +1069,7 @@
       "id": "T061",
       "title": "P2P: coercion/behavioral signals + holds + recipient-side mule freeze",
       "sprint": "S6-verticals-prod",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T060"
       ],

@@ -153,7 +153,7 @@
     - _accept:_ WHEN a first payment to a new payee exceeds the payer's historical maximum and the payee is not commonly paid by peers THEN a Confirmation-of-Payee check and a step-up SHALL be triggered
     - _accept:_ WHERE the P2P pack is loaded THEN the engine core SHALL remain free of P2P-specific logic (it plugs in via the feature/rule/action interfaces)
     - _verify (test):_ cargo test -p verticals-p2p app_fraud
-- [ ] **T061** P2P: coercion/behavioral signals + holds + recipient-side mule freeze ← T060
+- [x] **T061** P2P: coercion/behavioral signals + holds + recipient-side mule freeze ← T060
     - _accept:_ WHEN a payment is initiated shortly after an inbound call with segmented-typing / session-dead-time biometrics THEN a hold and a coercion-specific warning SHALL be applied
     - _accept:_ WHEN the recipient account is scored as a likely mule THEN inbound credit SHALL be held/frozen and a SAR SHALL be raised
     - _verify (test):_ cargo test -p verticals-p2p coercion
