@@ -97,7 +97,7 @@
     - _accept:_ WHEN a model is evaluated on labelled simulation data THEN PR-AUC, recall at a fixed FPR, precision at N, and the alert-to-fraud ratio SHALL be reported
     - _accept:_ WHERE a metrics report is produced THEN accuracy SHALL NOT appear as a headline metric
     - _verify (test):_ pytest ml/tests/test_eval.py
-- [ ] **T036** Model registry + champion-challenger + shadow + PSI drift ← T031, T035
+- [x] **T036** Model registry + champion-challenger + shadow + PSI drift ← T031, T035
     - _accept:_ WHEN a challenger model is deployed THEN it SHALL shadow-score live traffic without affecting decisions
     - _accept:_ WHEN feature or score PSI exceeds the configured threshold THEN a drift alert SHALL fire and a retraining trigger SHALL be recorded
     - _verify (test):_ cargo test -p model registry_shadow
