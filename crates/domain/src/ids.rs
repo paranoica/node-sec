@@ -70,7 +70,13 @@ string_id!(
 /// A card Primary Account Number. **Sensitive**: `Debug` and `Display` are redacted to the last
 /// four digits so it never leaks through formatting. In production a PAN should be tokenised
 /// upstream; this type is the last line of defence against logging a full PAN.
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// Serialisation is **redacted by design**: a serialised `Pan` carries only `<bin>****<last4>`,
+/// never the full number, so persisting/transporting a [`crate::transaction::Transaction`] (audit
+/// log, event backbone) cannot leak card data. Deserialisation is therefore lossy — a round-tripped
+/// `Pan` holds only the redacted token (and so compares unequal to the original full PAN), which is
+/// the intended security posture.
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Pan(String);
 
 impl Pan {
@@ -92,6 +98,30 @@ impl Pan {
     pub fn last4(&self) -> String {
         let count = self.0.chars().count();
         self.0.chars().skip(count.saturating_sub(4)).collect()
+    }
+
+    /// The redacted token safe to persist or transport: `<bin>****<last4>` (or `****<last4>` when
+    /// the PAN is too short to have a BIN). Never contains the full PAN.
+    #[must_use]
+    pub fn redacted(&self) -> String {
+        match self.bin() {
+            Some(bin) => format!("{}****{}", bin.as_str(), self.last4()),
+            None => format!("****{}", self.last4()),
+        }
+    }
+}
+
+impl Serialize for Pan {
+    /// Emits only the redacted token — a full PAN is never written to the wire (PCI).
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.redacted())
+    }
+}
+
+impl<'de> Deserialize<'de> for Pan {
+    /// Wraps the stored token as-is; since serialisation is redacted, this never recovers a full PAN.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Self(String::deserialize(deserializer)?))
     }
 }
 
@@ -137,5 +167,18 @@ mod tests {
             "411111"
         );
         assert!(Pan::new("123").bin().is_none());
+    }
+
+    #[test]
+    fn pan_serialize_never_emits_full_pan() {
+        let pan = Pan::new("4111111111111234");
+        let json = serde_json::to_string(&pan).unwrap();
+        // The full PAN must never reach the wire; only the redacted token does.
+        assert!(!json.contains("4111111111111234"));
+        assert_eq!(json, "\"411111****1234\"");
+        // The redacted token still yields bin + last4 after a round-trip.
+        let back: Pan = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.bin().unwrap().as_str(), "411111");
+        assert_eq!(back.last4(), "1234");
     }
 }
