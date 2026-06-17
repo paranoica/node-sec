@@ -1127,7 +1127,7 @@
       "id": "T063",
       "title": "Crypto: taint tracing (FIFO) + exposure scoring",
       "sprint": "S6-verticals-prod",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T062"
       ],

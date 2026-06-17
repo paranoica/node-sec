@@ -160,7 +160,7 @@
 - [x] **T062** Crypto pack: on-chain ledger sim + address clustering ← T032
     - _accept:_ WHEN the on-chain ledger is simulated THEN address clustering SHALL group common-input-ownership addresses while excluding CoinJoin transactions from the merge
     - _verify (test):_ cargo test -p verticals-crypto clustering
-- [ ] **T063** Crypto: taint tracing (FIFO) + exposure scoring ← T062
+- [x] **T063** Crypto: taint tracing (FIFO) + exposure scoring ← T062
     - _accept:_ WHEN funds flow from a known-bad cluster THEN FIFO taint tracing SHALL compute direct and indirect exposure with no fixed hop cutoff
     - _accept:_ WHEN a peel-chain or chain-hopping pattern is present THEN it SHALL be detected and contribute to the exposure score
     - _verify (test):_ cargo test -p verticals-crypto taint
