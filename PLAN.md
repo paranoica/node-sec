@@ -113,7 +113,7 @@
 - [x] **T042** Graph features (centrality, community, shortest-path-to-bad) → online store ← T041
     - _accept:_ WHEN the graph batch runs THEN per-node centrality (PageRank, personalised-PageRank from known-bad), community id/size, and shortest-path-to-bad features SHALL be materialised to the online feature store
     - _verify (test):_ pytest ml/tests/test_graph_features.py
-- [ ] **T043** Ring + temporal-motif detection (cycles, fan-in/out, scatter-gather) ← T041
+- [x] **T043** Ring + temporal-motif detection (cycles, fan-in/out, scatter-gather) ← T041
     - _accept:_ WHEN a time-ordered directed cycle or a fan-in→fan-out / scatter-gather motif appears THEN a fraud-ring alert SHALL be raised listing the participating entities and the matched typology
     - _verify (test):_ pytest ml/tests/test_motifs.py
 - [ ] **T044** Mule-account detection (signature fusion) ← T043, T042

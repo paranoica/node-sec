@@ -782,7 +782,7 @@
       "id": "T043",
       "title": "Ring + temporal-motif detection (cycles, fan-in/out, scatter-gather)",
       "sprint": "S4-graph",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T041"
       ],
