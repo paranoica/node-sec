@@ -39,7 +39,8 @@ pub fn reason_codes(features: &[f32], top_k: usize) -> Vec<ReasonCode> {
             })
         })
         .collect();
-    fired.sort_by(|a, b| b.1.partial_cmp(&a.1).expect("finite strengths"));
+    // `total_cmp` is a total order (no panic) even if a future enriched feature is non-finite.
+    fired.sort_by(|a, b| b.1.total_cmp(&a.1));
     fired
         .into_iter()
         .take(top_k)

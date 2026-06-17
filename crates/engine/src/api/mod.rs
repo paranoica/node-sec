@@ -3,7 +3,7 @@
 // fight the framework on every handler, so allow the large-err result here.
 #![allow(clippy::result_large_err)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use tonic::{Request, Response, Status};
@@ -12,19 +12,57 @@ use crate::decide::AsyncDecider;
 use crate::pb::decision_service_server::{DecisionService, DecisionServiceServer};
 use crate::pb::{DecisionRequest, DecisionResponse};
 
-/// The decision engine: an [`AsyncDecider`] (the model-backed hot path) behind an idempotency cache
-/// so a retried request returns the original verdict and never re-decides or double-updates state
-/// (`arch:idempotent-decision`).
-///
-/// # Limitation
-/// `cache` is an **unbounded** in-process map: it never evicts, so it grows without limit and is an
-/// out-of-memory vector under sustained load. This is deliberately deferred — the production
-/// idempotency store must be **bounded with a TTL** matched to the client retry window (and is the
-/// natural home for the Redis online store from D-006/T021). Do not put this path under sustained
-/// unique-key load until that store replaces this map.
+/// Maximum idempotency keys retained. Bounds memory: at ~20k tx/s this covers ~50 s of unique
+/// traffic, well past any realistic client retry window. A bounded in-process cache; the durable
+/// TTL store (Redis, D-006/T021) is the production replacement.
+const CACHE_CAPACITY: usize = 1_000_000;
+
+/// A bounded, FIFO-evicting idempotency cache: one key → one verdict, capped so unique-key traffic
+/// cannot grow it without limit (memory-DoS). Keys older than the last `CACHE_CAPACITY` decisions
+/// are evicted — far beyond the retry window that idempotency needs to cover.
+struct IdempotencyCache {
+    map: HashMap<String, DecisionResponse>,
+    order: VecDeque<String>,
+}
+
+impl IdempotencyCache {
+    fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+
+    fn get(&self, key: &str) -> Option<&DecisionResponse> {
+        self.map.get(key)
+    }
+
+    /// Insert `value` for `key` unless already present; return the verdict that is now authoritative
+    /// for the key (the first writer wins, so a concurrent same-key insert is idempotent).
+    fn insert_if_absent(&mut self, key: String, value: DecisionResponse) -> DecisionResponse {
+        if let Some(existing) = self.map.get(&key) {
+            return existing.clone();
+        }
+        while self.map.len() >= CACHE_CAPACITY {
+            match self.order.pop_front() {
+                Some(old) => {
+                    self.map.remove(&old);
+                }
+                None => break,
+            }
+        }
+        self.order.push_back(key.clone());
+        self.map.insert(key, value.clone());
+        value
+    }
+}
+
+/// The decision engine: an [`AsyncDecider`] (the model-backed hot path) behind a bounded idempotency
+/// cache so a retried request returns the original verdict and never re-decides or double-updates
+/// state (`arch:idempotent-decision`). The cache is capped at [`CACHE_CAPACITY`] with FIFO eviction.
 pub struct DecisionEngine {
     decider: Arc<dyn AsyncDecider>,
-    cache: Mutex<HashMap<String, DecisionResponse>>,
+    cache: Mutex<IdempotencyCache>,
 }
 
 impl DecisionEngine {
@@ -33,7 +71,7 @@ impl DecisionEngine {
     pub fn new(decider: Arc<dyn AsyncDecider>) -> Self {
         Self {
             decider,
-            cache: Mutex::new(HashMap::new()),
+            cache: Mutex::new(IdempotencyCache::new()),
         }
     }
 
@@ -52,25 +90,20 @@ impl DecisionEngine {
         }
 
         // Fast path: a previously decided key returns its original verdict — no re-decide, no write.
-        // The guard is dropped before the await below, so no lock is held across it.
-        if let Some(existing) = self
-            .cache
-            .lock()
-            .expect("idempotency cache poisoned")
-            .get(&req.idempotency_key)
+        // A poisoned lock is recovered (the data is intact; poisoning only flags a prior panic) so a
+        // single panicked request can never wedge the whole decision service. The guard is dropped
+        // before the await below, so no lock is held across it.
         {
-            return Ok(existing.clone());
+            let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(existing) = cache.get(&req.idempotency_key) {
+                return Ok(existing.clone());
+            }
         }
 
         let fresh = self.decider.decide(req).await;
-        let mut cache = self.cache.lock().expect("idempotency cache poisoned");
-        // A concurrent request with the same key may have inserted first; keep the first verdict so
-        // one key maps to exactly one decision.
-        let stored = cache
-            .entry(req.idempotency_key.clone())
-            .or_insert(fresh)
-            .clone();
-        Ok(stored)
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        // First writer wins, so one key maps to exactly one decision even under a same-key race.
+        Ok(cache.insert_if_absent(req.idempotency_key.clone(), fresh))
     }
 
     /// Wrap into a mountable tonic server service.
@@ -162,6 +195,28 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(decider.calls(), 1);
+    }
+
+    #[test]
+    fn idempotency_cache_keeps_the_first_verdict_per_key() {
+        let mut cache = IdempotencyCache::new();
+        let first = DecisionResponse {
+            transaction_id: "t".into(),
+            action: "APPROVE".into(),
+            score: 0.1,
+            band: "LOW".into(),
+            reason_codes: vec![],
+            rule_version: "v".into(),
+            model_version: "m".into(),
+        };
+        let second = DecisionResponse {
+            action: "DECLINE".into(),
+            ..first.clone()
+        };
+        assert_eq!(cache.insert_if_absent("k".into(), first.clone()), first);
+        // A later insert for the same key returns the first verdict and ignores the new one.
+        assert_eq!(cache.insert_if_absent("k".into(), second), first);
+        assert_eq!(cache.get("k").unwrap().action, "APPROVE");
     }
 
     #[tokio::test]
