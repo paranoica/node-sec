@@ -524,7 +524,7 @@
       "id": "T031",
       "title": "ONNX export + in-process inference in Rust",
       "sprint": "S3-ml-scoring",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T030",
         "T022"

@@ -78,7 +78,7 @@
     - _accept:_ WHEN the pipeline trains on labelled data THEN it SHALL produce a LightGBM model trained cost-sensitively and a calibrated score (isotonic or Platt)
     - _accept:_ WHEN the calibrated model is evaluated THEN its score SHALL approximate the true fraud probability on a held-out set
     - _verify (test):_ pytest ml/tests/test_train.py
-- [ ] **T031** ONNX export + in-process inference in Rust ← T030, T022
+- [x] **T031** ONNX export + in-process inference in Rust ← T030, T022
     - _accept:_ WHEN a trained model is exported to ONNX THEN the engine SHALL load it and score a feature vector in-process with no network call
     - _accept:_ WHEN the same feature vector is scored in Python and in the Rust engine THEN the scores SHALL match within tolerance
     - _verify (test):_ cargo test -p model inference_parity
