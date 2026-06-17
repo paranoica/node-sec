@@ -6,10 +6,13 @@
 //!
 //! - [`ledger`] — UTXO-style on-chain ledger simulation (T062).
 //! - [`clustering`] — common-input-ownership clustering, CoinJoin-excluded (T062).
+//! - [`taint`] — FIFO taint tracing + exposure scoring (T063).
 #![forbid(unsafe_code)]
 
 pub mod clustering;
 pub mod ledger;
+pub mod taint;
 
 pub use clustering::{cluster_addresses, is_coinjoin, ClusterConfig, Clustering};
 pub use ledger::{Output, Tx};
+pub use taint::{trace_taint, ExposureReport, TaintConfig, Transfer};
