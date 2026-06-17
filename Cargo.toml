@@ -1,0 +1,33 @@
+# node-sec — Rust workspace.
+# Hot path + async update path live here; the Python ML/graph tree is under ml/ (separate toolchain).
+# Vertical packs (verticals-p2p, verticals-crypto) and the dashboard api crate are added by their
+# own backlog tasks (S5/S6); the core crates below must never depend on a vertical pack
+# (arch:vertical-agnostic-core).
+[workspace]
+resolver = "2"
+members = [
+    "crates/domain",
+    "crates/engine",
+    "crates/ingest",
+    "crates/stream",
+    "crates/features",
+    "crates/rules",
+    "crates/model",
+    "crates/graph",
+    "crates/compliance",
+    "crates/simulator",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.90"
+
+[workspace.lints.clippy]
+# Match CI: clippy runs with -D warnings. Keep the workspace warning-clean from the start.
+all = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
