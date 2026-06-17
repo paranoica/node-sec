@@ -107,7 +107,7 @@
     - _accept:_ WHEN records share identifiers (device, phone, email, address, card) THEN entity resolution SHALL cluster them into identity-graph entities via normalise → block → match → cluster
     - _accept:_ WHERE a shared identifier is high-cardinality and weak (e.g. a shared public IP) THEN it SHALL NOT by itself merge distinct entities
     - _verify (test):_ pytest ml/tests/test_er.py
-- [ ] **T041** Transaction graph construction (temporal, weighted) ← T040
+- [x] **T041** Transaction graph construction (temporal, weighted) ← T040
     - _accept:_ WHEN transactions are processed THEN a directed, time-stamped, weighted transaction graph SHALL be built and updated with amount/count/recency edge attributes
     - _verify (test):_ cargo test -p graph txn_graph
 - [ ] **T042** Graph features (centrality, community, shortest-path-to-bad) → online store ← T041

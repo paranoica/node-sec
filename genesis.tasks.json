@@ -728,7 +728,7 @@
       "id": "T041",
       "title": "Transaction graph construction (temporal, weighted)",
       "sprint": "S4-graph",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T040"
       ],
