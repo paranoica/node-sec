@@ -3,6 +3,7 @@
 // static server. No server runtime needed for the prototype.
 const nextConfig = {
   output: 'export',
+  trailingSlash: true, // emit out/<route>/index.html so a plain static server resolves /sim/ cleanly
   images: { unoptimized: true },
   reactStrictMode: true,
 };

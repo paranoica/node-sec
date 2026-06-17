@@ -119,3 +119,4 @@ coverage.xml
 
 # code-review local working state (report, receipts)
 .review/
+.design/verify-sim/
