@@ -1,7 +1,9 @@
-//! Decisioning (D-005): fuse rule hits → risk band → action + reason codes.
+//! Decisioning (D-005): fuse rule hits (+ the calibrated model score) → risk band → action.
 //!
-//! Rules-only v0 — the calibrated model score and expected-value action selection arrive in
-//! T031/T032; here the score is a heuristic derived from the rule hits.
+//! [`fuse`] is the rules-only heuristic used by [`RulesDecider`]. [`fuse_ev`] (T032) adds the model
+//! score and selects the action by **expected value** over a [`CostMatrix`]; a hard rule override
+//! always wins. Wiring `fuse_ev` into the gRPC path (assemble feature vector → `model` score →
+//! `fuse_ev`) is the remaining integration step.
 
 use std::sync::Arc;
 
@@ -68,6 +70,106 @@ pub fn fuse(eval: &Evaluation) -> (RiskBand, Action, f64) {
         1..=2 => (RiskBand::Medium, Action::StepUp, 0.5),
         _ => (RiskBand::High, Action::Review, 0.8),
     }
+}
+
+/// The cost of one action under each true outcome (arbitrary cost units, tuned per business).
+#[derive(Debug, Clone, Copy)]
+pub struct ActionCost {
+    /// Cost if the transaction is actually fraud.
+    pub if_fraud: f64,
+    /// Cost if the transaction is actually legitimate.
+    pub if_legit: f64,
+}
+
+/// Expected-value cost matrix: the cost of each action under each true outcome (D-005).
+#[derive(Debug, Clone, Copy)]
+pub struct CostMatrix {
+    /// Cost of approving.
+    pub approve: ActionCost,
+    /// Cost of declining.
+    pub decline: ActionCost,
+    /// Cost of a step-up challenge.
+    pub step_up: ActionCost,
+    /// Cost of routing to review.
+    pub review: ActionCost,
+    /// Cost of a hold.
+    pub hold: ActionCost,
+}
+
+impl Default for CostMatrix {
+    fn default() -> Self {
+        Self {
+            approve: ActionCost {
+                if_fraud: 100.0,
+                if_legit: 0.0,
+            },
+            decline: ActionCost {
+                if_fraud: 0.0,
+                if_legit: 30.0,
+            },
+            step_up: ActionCost {
+                if_fraud: 20.0,
+                if_legit: 5.0,
+            },
+            review: ActionCost {
+                if_fraud: 8.0,
+                if_legit: 15.0,
+            },
+            hold: ActionCost {
+                if_fraud: 5.0,
+                if_legit: 18.0,
+            },
+        }
+    }
+}
+
+impl CostMatrix {
+    fn expected_cost(cost: ActionCost, p_fraud: f64) -> f64 {
+        p_fraud * cost.if_fraud + (1.0 - p_fraud) * cost.if_legit
+    }
+}
+
+fn band_for_score(score: f64) -> RiskBand {
+    if score < 0.3 {
+        RiskBand::Low
+    } else if score < 0.6 {
+        RiskBand::Medium
+    } else if score < 0.85 {
+        RiskBand::High
+    } else {
+        RiskBand::VeryHigh
+    }
+}
+
+/// Fuse rule signals and the calibrated model score, then select the action by expected value over
+/// the cost matrix (D-005). A hard rule override always wins; otherwise soft signals raise the fraud
+/// probability and the minimum-expected-cost action is chosen. Returns `(band, action, fused_score)`.
+#[must_use]
+pub fn fuse_ev(eval: &Evaluation, model_score: f64, costs: &CostMatrix) -> (RiskBand, Action, f64) {
+    if eval.is_hard_decline() {
+        return (RiskBand::VeryHigh, Action::Decline, model_score.max(0.99));
+    }
+    let soft = eval
+        .hits
+        .iter()
+        .filter(|h| h.disposition == Disposition::Soft)
+        .count();
+    let p_fraud = (model_score + 0.1 * soft as f64).clamp(0.0, 1.0);
+
+    let candidates = [
+        (Action::Approve, costs.approve),
+        (Action::Decline, costs.decline),
+        (Action::StepUp, costs.step_up),
+        (Action::Review, costs.review),
+        (Action::Hold, costs.hold),
+    ];
+    let (action, _) = candidates
+        .into_iter()
+        .map(|(action, cost)| (action, CostMatrix::expected_cost(cost, p_fraud)))
+        .min_by(|a, b| a.1.partial_cmp(&b.1).expect("finite costs"))
+        .expect("non-empty candidate set");
+
+    (band_for_score(p_fraud), action, p_fraud)
 }
 
 fn action_str(action: Action) -> &'static str {
@@ -193,6 +295,46 @@ mod tests {
         let (band, action, _) = fuse(&eval);
         assert_eq!(action, Action::Decline);
         assert_eq!(band, RiskBand::VeryHigh);
+    }
+
+    fn hard_decline_eval() -> Evaluation {
+        Evaluation {
+            hits: vec![RuleHit {
+                rule_id: "blocklist.bin".to_string(),
+                reason_code: ReasonCode::new("BLOCKLIST_BIN"),
+                typology: "blocklist".to_string(),
+                disposition: Disposition::HardDecline,
+            }],
+        }
+    }
+
+    #[test]
+    fn fusion_ev_hard_override_always_declines() {
+        // Even with a near-zero model score, a hard rule override wins.
+        let (_, action, _) = fuse_ev(&hard_decline_eval(), 0.001, &CostMatrix::default());
+        assert_eq!(action, Action::Decline);
+    }
+
+    #[test]
+    fn fusion_ev_low_score_approves() {
+        let (band, action, _) = fuse_ev(&Evaluation::default(), 0.02, &CostMatrix::default());
+        assert_eq!(action, Action::Approve);
+        assert_eq!(band, RiskBand::Low);
+    }
+
+    #[test]
+    fn fusion_ev_high_score_declines() {
+        let (band, action, score) = fuse_ev(&Evaluation::default(), 0.95, &CostMatrix::default());
+        assert_eq!(action, Action::Decline);
+        assert_eq!(band, RiskBand::VeryHigh);
+        assert!((score - 0.95).abs() < 1e-9);
+    }
+
+    #[test]
+    fn fusion_ev_picks_minimum_expected_cost_at_mid_score() {
+        // Mid risk: neither approve (fraud loss) nor decline (friction) is optimal → review/hold.
+        let (_, action, _) = fuse_ev(&Evaluation::default(), 0.5, &CostMatrix::default());
+        assert!(matches!(action, Action::Review | Action::Hold));
     }
 
     fn req(pan: &str) -> DecisionRequest {
