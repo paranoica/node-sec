@@ -11,4 +11,6 @@ pub mod registry;
 
 pub use explain::{reason_codes, REASON_CODE_VERSION};
 pub use inference::FraudModel;
-pub use registry::{drift_alert, psi, ModelRegistry, ScoredDecision, Scorer};
+pub use registry::{
+    drift_alert, psi, LockedModel, ModelRegistry, PooledModel, ScoredDecision, Scorer,
+};

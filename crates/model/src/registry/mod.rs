@@ -11,6 +11,99 @@ pub trait Scorer {
     fn score(&self, features: &[f32]) -> f32;
 }
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
+
+use crate::inference::FraudModel;
+
+/// Score one feature vector. Fail safe: an inference error scores as **maximum** risk, never 0
+/// (which would silently approve). The hot path must not panic here.
+fn score_one(model: &mut FraudModel, features: &[f32]) -> f32 {
+    model
+        .score(&[features.to_vec()])
+        .ok()
+        .and_then(|scores| scores.first().copied())
+        .unwrap_or(1.0)
+}
+
+/// A [`Scorer`] backed by an ONNX [`FraudModel`] behind a mutex: inference needs `&mut self`, the
+/// `Scorer` trait is `&self`, and the lock also serialises the ORT session (one inference at a time).
+pub struct LockedModel {
+    model: Mutex<FraudModel>,
+}
+
+impl LockedModel {
+    /// Wrap a loaded model.
+    #[must_use]
+    pub fn new(model: FraudModel) -> Self {
+        Self {
+            model: Mutex::new(model),
+        }
+    }
+
+    /// Load from ONNX bytes.
+    ///
+    /// # Errors
+    /// Returns an [`ort::Error`] if the graph fails to load.
+    pub fn from_onnx_bytes(bytes: &[u8]) -> ort::Result<Self> {
+        Ok(Self::new(FraudModel::from_onnx_bytes(bytes)?))
+    }
+}
+
+impl Scorer for LockedModel {
+    fn score(&self, features: &[f32]) -> f32 {
+        match self.model.lock() {
+            Ok(mut model) => score_one(&mut model, features),
+            Err(_) => 1.0, // poisoned → max risk
+        }
+    }
+}
+
+/// A pool of ONNX sessions so inference runs concurrently instead of serialising on one mutex — the
+/// single session is the throughput ceiling under load (the `Scorer` trait is `&self`, so a single
+/// `&mut` session can serve only one request at a time). Round-robins a starting session, then
+/// `try_lock`s around the ring so a busy session never blocks a free one.
+pub struct PooledModel {
+    sessions: Vec<Mutex<FraudModel>>,
+    next: AtomicUsize,
+}
+
+impl PooledModel {
+    /// Load `size` independent sessions from the same ONNX bytes (`size` clamped to ≥ 1).
+    ///
+    /// # Errors
+    /// Returns an [`ort::Error`] if any session fails to load.
+    pub fn from_onnx_bytes(bytes: &[u8], size: usize) -> ort::Result<Self> {
+        let size = size.max(1);
+        let mut sessions = Vec::with_capacity(size);
+        for _ in 0..size {
+            sessions.push(Mutex::new(FraudModel::from_onnx_bytes(bytes)?));
+        }
+        Ok(Self {
+            sessions,
+            next: AtomicUsize::new(0),
+        })
+    }
+}
+
+impl Scorer for PooledModel {
+    fn score(&self, features: &[f32]) -> f32 {
+        let n = self.sessions.len();
+        let start = self.next.fetch_add(1, Ordering::Relaxed) % n;
+        // Walk the ring with try_lock so a busy session is skipped rather than waited on.
+        for k in 0..n {
+            if let Ok(mut model) = self.sessions[(start + k) % n].try_lock() {
+                return score_one(&mut model, features);
+            }
+        }
+        // All busy — block on the round-robin pick.
+        match self.sessions[start].lock() {
+            Ok(mut model) => score_one(&mut model, features),
+            Err(_) => 1.0,
+        }
+    }
+}
+
 struct Versioned {
     version: String,
     scorer: Box<dyn Scorer + Send + Sync>,

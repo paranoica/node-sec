@@ -21,6 +21,33 @@ pub struct RequestFeatures {
     pub velocity_count: u64,
 }
 
+/// Number of model input features — must match `ml` `FEATURE_NAMES` and the ONNX graph's input.
+pub const MODEL_FEATURE_LEN: usize = 8;
+
+/// Assemble the model input vector in the canonical `FEATURE_NAMES` order from the transaction and
+/// the entity's online aggregates:
+/// `[velocity_5m, velocity_1h, velocity_24h, amount_to_mean_ratio, amount_z_score,
+///   distinct_devices_24h, decline_rate_1h, high_risk_mcc]`.
+///
+/// The last three are `0.0` for now: the online aggregates carry no device cardinality or decline
+/// counts, and the request schema does not yet carry MCC. They light up with the
+/// feature/request-schema enrichment work — until then the model scores on the five it has.
+#[must_use]
+pub fn model_vector(txn: &Transaction, aggregates: &WindowAggregates) -> Vec<f32> {
+    let dev = derive(txn, aggregates);
+    let velocity = |label: &str| aggregates.get(label).map_or(0, |s| s.count) as f32;
+    vec![
+        velocity("5m"),
+        velocity("1h"),
+        velocity("24h"),
+        dev.amount_to_mean_ratio as f32,
+        dev.amount_z_score as f32,
+        0.0, // distinct_devices_24h — not in the online aggregates yet
+        0.0, // decline_rate_1h — not in the online aggregates yet
+        0.0, // high_risk_mcc — request schema carries no MCC yet
+    ]
+}
+
 /// Derive request-time deviation features. Reads only the supplied aggregates; never writes.
 #[must_use]
 pub fn derive(txn: &Transaction, aggregates: &WindowAggregates) -> RequestFeatures {
@@ -93,6 +120,44 @@ mod tests {
         assert!((f.amount_to_mean_ratio - 1.0).abs() < 1e-9);
         assert!(f.amount_z_score.abs() < 1e-9);
         assert_eq!(f.velocity_count, 0);
+    }
+
+    fn aggregates_velocity(v5m: u64, v1h: u64, v24h: u64) -> WindowAggregates {
+        WindowAggregates {
+            windows: vec![
+                WindowStat {
+                    label: "5m".to_string(),
+                    count: v5m,
+                    sum_minor: 0,
+                    sum_sq: 0,
+                },
+                WindowStat {
+                    label: "1h".to_string(),
+                    count: v1h,
+                    sum_minor: 0,
+                    sum_sq: 0,
+                },
+                WindowStat {
+                    label: "24h".to_string(),
+                    count: v24h,
+                    sum_minor: 0,
+                    sum_sq: 0,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn model_vector_maps_windows_to_canonical_order() {
+        let v = model_vector(&txn(1_000), &aggregates_velocity(2, 5, 13));
+        assert_eq!(v.len(), MODEL_FEATURE_LEN);
+        assert_eq!(v[0], 2.0); // velocity_5m
+        assert_eq!(v[1], 5.0); // velocity_1h
+        assert_eq!(v[2], 13.0); // velocity_24h
+                                // No 30d history → neutral deviation features, and the three unsupplied features are 0.
+        assert_eq!(v[3], 1.0); // amount_to_mean_ratio (neutral)
+        assert_eq!(v[4], 0.0); // amount_z_score (neutral)
+        assert_eq!(&v[5..8], &[0.0, 0.0, 0.0]);
     }
 
     #[test]

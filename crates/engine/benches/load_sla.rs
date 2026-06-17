@@ -1,8 +1,9 @@
 //! Full-engine load test to the latency SLA (T065; D-003, `arch:decision-within-budget`).
 //!
-//! Drives the model-ready hot path — [`FeatureAwareDecider`], which reads the online feature store
-//! within a per-call budget and falls back to the rules-only decision on any store fault — and
-//! checks **p99 < 20 ms** at load. Two modes:
+//! Drives the **model-backed** hot path — [`FeatureAwareDecider`] reads the online feature store
+//! within a per-call budget, scores the real exported ONNX model (a pool of sessions) by expected
+//! value, and falls back to the rules-only decision on any store fault — and checks **p99 < 20 ms**
+//! at load. Two modes:
 //!
 //! * default (healthy store) — the ~20k tx/s SLA probe;
 //! * `LOAD_SLA_FAULT=store` — the online store is faulted under load; fail-safe degradation must
@@ -34,6 +35,8 @@ const SLA_US: f64 = 20_000.0;
 const TARGET_TPS: f64 = 20_000.0;
 /// Concurrent in-flight requests offered to the engine (models the live request fan-in).
 const CONCURRENCY: usize = 16;
+/// The exported fraud model — the real ONNX graph scored in-process on the hot path.
+const MODEL_ONNX: &[u8] = include_bytes!("../../../ml/artifacts/fraud_lgbm.onnx");
 
 /// A faulted online store: every read fails immediately (a dependency that is down).
 struct FaultedStore;
@@ -81,10 +84,19 @@ where
         .build()
         .expect("runtime");
     let online = OnlineFeatures::new(store, Duration::from_millis(READ_BUDGET_MS));
-    let decider = Arc::new(FeatureAwareDecider::new(
-        Arc::new(RulesEngine::from_config(RulesConfig::default())),
-        online,
+    // The real ONNX champion on the hot path — this is the full model-backed decision under load.
+    let champion = model::PooledModel::from_onnx_bytes(MODEL_ONNX, 8).expect("load onnx");
+    let registry = Arc::new(model::ModelRegistry::new(
+        "champion-load",
+        Box::new(champion),
     ));
+    let decider = Arc::new(
+        FeatureAwareDecider::new(
+            Arc::new(RulesEngine::from_config(RulesConfig::default())),
+            online,
+        )
+        .with_model(registry, engine::decision::CostMatrix::default()),
+    );
     let pool: Arc<Vec<DecisionRequest>> = Arc::new((0..1000).map(make_request).collect());
 
     rt.block_on(async move {

@@ -12,6 +12,7 @@ workspace = true
 domain = { path = "../domain" }
 rules = { path = "../rules" }
 features = { path = "../features" }
+model = { path = "../model" }
 stream = { path = "../stream" }
 tokio = { workspace = true, features = ["time"] }
 tonic = { workspace = true }

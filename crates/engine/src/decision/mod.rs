@@ -180,7 +180,7 @@ pub fn fuse_ev(eval: &Evaluation, model_score: f64, costs: &CostMatrix) -> (Risk
     (band_for_score(p_fraud), action, p_fraud)
 }
 
-fn action_str(action: Action) -> &'static str {
+pub(crate) fn action_str(action: Action) -> &'static str {
     match action {
         Action::Approve => "APPROVE",
         Action::Decline => "DECLINE",
@@ -190,7 +190,7 @@ fn action_str(action: Action) -> &'static str {
     }
 }
 
-fn band_str(band: RiskBand) -> &'static str {
+pub(crate) fn band_str(band: RiskBand) -> &'static str {
     match band {
         RiskBand::Low => "LOW",
         RiskBand::Medium => "MEDIUM",
@@ -203,7 +203,7 @@ fn band_str(band: RiskBand) -> &'static str {
 /// defaults (the simulator emits valid values; production callers are validated upstream). MCC, AVS,
 /// CVV and geo are not yet carried on the request wire, so those rules stay dormant for gRPC traffic
 /// until the request schema is enriched.
-fn request_to_transaction(req: &DecisionRequest) -> Transaction {
+pub(crate) fn request_to_transaction(req: &DecisionRequest) -> Transaction {
     let occurred_at =
         OffsetDateTime::from_unix_timestamp_nanos(i128::from(req.occurred_at_unix_ms) * 1_000_000)
             .unwrap_or(OffsetDateTime::UNIX_EPOCH);

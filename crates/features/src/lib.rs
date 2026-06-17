@@ -10,7 +10,7 @@ pub mod graph;
 pub mod offline;
 pub mod online;
 
-pub use derive::{derive, RequestFeatures};
+pub use derive::{derive, model_vector, RequestFeatures, MODEL_FEATURE_LEN};
 pub use graph::{GraphFeatureStore, GraphFeatures, InMemoryGraphStore};
 pub use offline::materialize;
 pub use online::{OnlineFeatures, ReadResult};
