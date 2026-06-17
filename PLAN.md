@@ -45,7 +45,7 @@
     - _accept:_ WHEN rule signals are aggregated into a risk band THEN the engine SHALL select exactly one action from {approve, decline, step-up, review, hold}
     - _accept:_ WHEN a decision is produced THEN it SHALL attach the reason codes of the dominant contributing rules
     - _verify (test):_ cargo test -p engine decision_bands
-- [ ] **T015** Audit log writer (immutable, replayable) → Postgres ← T010
+- [x] **T015** Audit log writer (immutable, replayable) → Postgres ← T010
     - _accept:_ WHEN a decision is emitted THEN exactly one immutable audit record SHALL be written via the async path containing inputs, feature snapshot, rule/model versions, score, and reason codes
     - _accept:_ WHEN an audit record is replayed THEN the engine SHALL reproduce the identical decision
     - _verify (test):_ cargo test -p compliance audit_replay

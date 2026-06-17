@@ -291,7 +291,7 @@
       "id": "T015",
       "title": "Audit log writer (immutable, replayable) → Postgres",
       "sprint": "S1-card-slice",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T010"
       ],
