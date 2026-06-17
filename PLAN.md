@@ -149,7 +149,7 @@
     - _verify (manual):_ curl the analyst API + design-creator brief review
 
 ## S6-verticals-prod
-- [ ] **T060** P2P pack: APP-fraud signals + new-payee + Confirmation of Payee ← T032, T044
+- [x] **T060** P2P pack: APP-fraud signals + new-payee + Confirmation of Payee ← T032, T044
     - _accept:_ WHEN a first payment to a new payee exceeds the payer's historical maximum and the payee is not commonly paid by peers THEN a Confirmation-of-Payee check and a step-up SHALL be triggered
     - _accept:_ WHERE the P2P pack is loaded THEN the engine core SHALL remain free of P2P-specific logic (it plugs in via the feature/rule/action interfaces)
     - _verify (test):_ cargo test -p verticals-p2p app_fraud

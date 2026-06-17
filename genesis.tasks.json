@@ -1038,7 +1038,7 @@
       "id": "T060",
       "title": "P2P pack: APP-fraud signals + new-payee + Confirmation of Payee",
       "sprint": "S6-verticals-prod",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T032",
         "T044"
