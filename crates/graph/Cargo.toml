@@ -10,3 +10,4 @@ workspace = true
 
 [dependencies]
 petgraph = { workspace = true }
+time = { workspace = true }

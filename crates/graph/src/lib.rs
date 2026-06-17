@@ -6,5 +6,7 @@
 #![forbid(unsafe_code)]
 
 pub mod er;
+pub mod txn;
 
 pub use er::{normalise, resolve, IdentifierKind, Record};
+pub use txn::{TransactionGraph, TransferEdge};
