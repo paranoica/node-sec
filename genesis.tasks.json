@@ -1154,7 +1154,7 @@
       "id": "T064",
       "title": "Crypto: sanctioned-address (date-versioned) + scam-token/phishing/poisoning",
       "sprint": "S6-verticals-prod",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T063"
       ],

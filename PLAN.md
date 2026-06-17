@@ -164,7 +164,7 @@
     - _accept:_ WHEN funds flow from a known-bad cluster THEN FIFO taint tracing SHALL compute direct and indirect exposure with no fixed hop cutoff
     - _accept:_ WHEN a peel-chain or chain-hopping pattern is present THEN it SHALL be detected and contribute to the exposure score
     - _verify (test):_ cargo test -p verticals-crypto taint
-- [ ] **T064** Crypto: sanctioned-address (date-versioned) + scam-token/phishing/poisoning ← T063
+- [x] **T064** Crypto: sanctioned-address (date-versioned) + scam-token/phishing/poisoning ← T063
     - _accept:_ WHEN a transfer touches a sanctioned address as-of the transaction date THEN it SHALL be blocked (and a later delisting SHALL NOT retroactively unblock the past decision)
     - _accept:_ WHEN a lookalike address (matching prefix/suffix) appears shortly after a real transfer THEN an address-poisoning warning SHALL fire
     - _accept:_ WHEN a VASP-to-VASP transfer at or above the de-minimis lacks Travel Rule data THEN it SHALL be flagged
