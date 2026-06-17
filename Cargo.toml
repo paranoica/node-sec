@@ -17,6 +17,7 @@ members = [
     "crates/compliance",
     "crates/simulator",
     "crates/api",
+    "crates/verticals/p2p",
 ]
 
 [workspace.package]
