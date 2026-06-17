@@ -10,9 +10,11 @@ workspace = true
 
 [dependencies]
 domain = { path = "../domain" }
+rules = { path = "../rules" }
 tokio = { workspace = true }
 tonic = { workspace = true }
 prost = { workspace = true }
+time = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.12"

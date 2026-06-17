@@ -19,6 +19,7 @@ message DecisionRequest {
   string pan = 7;                 // optional, card vertical
   string merchant = 8;            // optional
   string device = 9;              // optional
+  int64 occurred_at_unix_ms = 10; // event time (epoch milliseconds)
 }
 
 message DecisionResponse {
