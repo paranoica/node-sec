@@ -103,7 +103,7 @@
     - _verify (test):_ cargo test -p model registry_shadow
 
 ## S4-graph
-- [ ] **T040** Entity resolution → identity graph ← T020
+- [x] **T040** Entity resolution → identity graph ← T020
     - _accept:_ WHEN records share identifiers (device, phone, email, address, card) THEN entity resolution SHALL cluster them into identity-graph entities via normalise → block → match → cluster
     - _accept:_ WHERE a shared identifier is high-cardinality and weak (e.g. a shared public IP) THEN it SHALL NOT by itself merge distinct entities
     - _verify (test):_ pytest ml/tests/test_er.py

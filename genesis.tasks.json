@@ -698,7 +698,7 @@
       "id": "T040",
       "title": "Entity resolution → identity graph",
       "sprint": "S4-graph",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T020"
       ],
