@@ -116,7 +116,7 @@
 - [x] **T043** Ring + temporal-motif detection (cycles, fan-in/out, scatter-gather) ← T041
     - _accept:_ WHEN a time-ordered directed cycle or a fan-in→fan-out / scatter-gather motif appears THEN a fraud-ring alert SHALL be raised listing the participating entities and the matched typology
     - _verify (test):_ pytest ml/tests/test_motifs.py
-- [ ] **T044** Mule-account detection (signature fusion) ← T043, T042
+- [x] **T044** Mule-account detection (signature fusion) ← T043, T042
     - _accept:_ WHEN an account shows fan-in from dispersed sources then fan-out to few destinations, a pass-through ratio near 1, and short dwell time THEN a mule-account alert SHALL be raised
     - _accept:_ WHEN a dormant account suddenly receives and forwards large funds THEN the dormant-then-active signal SHALL contribute to the mule score
     - _verify (test):_ cargo test -p graph mule

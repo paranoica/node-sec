@@ -806,7 +806,7 @@
       "id": "T044",
       "title": "Mule-account detection (signature fusion)",
       "sprint": "S4-graph",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T043",
         "T042"
