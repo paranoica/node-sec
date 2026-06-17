@@ -27,7 +27,7 @@
     - _accept:_ WHEN a decision request with an idempotency key is received THEN the engine SHALL return a decision
     - _accept:_ WHEN a request is retried with a previously seen idempotency key THEN the engine SHALL return the original decision and SHALL NOT produce an additional state update
     - _verify (test):_ cargo test -p engine idempotency
-- [ ] **T011** Rules engine: hot-reloadable config + blocklists ← T010
+- [x] **T011** Rules engine: hot-reloadable config + blocklists ← T010
     - _accept:_ WHEN rule configuration is updated on disk THEN the engine SHALL load the new rules without a restart
     - _accept:_ WHEN an identifier matches a blocklist THEN the decision SHALL be a hard decline carrying the rule's reason code and typology tag
     - _verify (test):_ cargo test -p rules reload

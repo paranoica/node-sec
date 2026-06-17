@@ -177,7 +177,7 @@
       "id": "T011",
       "title": "Rules engine: hot-reloadable config + blocklists",
       "sprint": "S1-card-slice",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T010"
       ],
