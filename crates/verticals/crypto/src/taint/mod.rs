@@ -100,7 +100,10 @@ fn consume_fifo(queue: &mut VecDeque<Lot>, amount: i64) -> i64 {
             tainted_consumed += front.tainted;
             queue.pop_front();
         } else {
-            let take_tainted = front.tainted * remaining / front.value;
+            // Widen to i128: `tainted * remaining` overflows i64 for realistic on-chain amounts
+            // (~30 BTC in satoshis squared), which would panic under release overflow-checks.
+            let take_tainted = (i128::from(front.tainted) * i128::from(remaining)
+                / i128::from(front.value)) as i64;
             front.value -= remaining;
             front.tainted -= take_tainted;
             tainted_consumed += take_tainted;
