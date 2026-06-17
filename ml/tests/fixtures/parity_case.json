@@ -1,0 +1,19 @@
+{
+  "_comment": "Golden parity fixture (T023). Both the Python offline aggregation (ml/features/windows.py) and the Rust online definition (stream::EntityWindows, asserted in crates/features/src/offline.rs) must reproduce `expected`. now=1780000000. Events span 10s/120s/2h/40d ago plus one future event.",
+  "now_unix": 1780000000,
+  "events": [
+    { "ts_unix": 1779999990, "amount_minor": 100 },
+    { "ts_unix": 1779999880, "amount_minor": 200 },
+    { "ts_unix": 1779992800, "amount_minor": 1000 },
+    { "ts_unix": 1776544000, "amount_minor": 500 },
+    { "ts_unix": 1780000100, "amount_minor": 999 }
+  ],
+  "expected": {
+    "1m":  { "count": 1, "sum_minor": 100,  "sum_sq": 10000 },
+    "5m":  { "count": 2, "sum_minor": 300,  "sum_sq": 50000 },
+    "1h":  { "count": 2, "sum_minor": 300,  "sum_sq": 50000 },
+    "24h": { "count": 3, "sum_minor": 1300, "sum_sq": 1050000 },
+    "7d":  { "count": 3, "sum_minor": 1300, "sum_sq": 1050000 },
+    "30d": { "count": 3, "sum_minor": 1300, "sum_sq": 1050000 }
+  }
+}
