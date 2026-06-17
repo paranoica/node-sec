@@ -65,12 +65,16 @@ pub struct ScreeningAlert {
 pub struct ScreeningConfig {
     /// Jaro-Winkler score at or above which a name is a fuzzy match.
     pub name_threshold: f64,
+    /// Jaro-Winkler score at or above which an **OFAC SDN** name match alerts on its own, without
+    /// secondary-identifier corroboration (sanctions must not be suppressed to nothing).
+    pub sanctions_strong_threshold: f64,
 }
 
 impl Default for ScreeningConfig {
     fn default() -> Self {
         Self {
             name_threshold: 0.88,
+            sanctions_strong_threshold: 0.95,
         }
     }
 }
@@ -164,8 +168,15 @@ pub fn screen(
         .filter_map(|entry| {
             let name_score = name_match(&subject.name, &entry.name, config.name_threshold)?;
             let corroborated_by = corroborate(subject, entry);
-            if corroborated_by.is_empty() {
-                return None; // name-only match → suppressed
+            // Sanctions (OFAC SDN) must NOT be gated by secondary-identifier corroboration: SDN
+            // records frequently carry no DOB/nationality, so requiring corroboration would silently
+            // drop a true sanctioned-party hit. A strong name match to an SDN entry alerts on its
+            // own; corroboration still gates fuzzy/phonetic matches and the PEP/adverse-media lists
+            // (where name-only suppression is the right false-positive control).
+            let strong_sanctions_hit =
+                entry.list == ListKind::OfacSdn && name_score >= config.sanctions_strong_threshold;
+            if corroborated_by.is_empty() && !strong_sanctions_hit {
+                return None; // fuzzy / PEP / adverse-media name-only match → suppressed
             }
             Some(ScreeningAlert {
                 subject_name: subject.name.clone(),
@@ -233,18 +244,44 @@ mod tests {
     }
 
     #[test]
-    fn screening_suppresses_a_name_only_match() {
-        let wl = [entry(
-            "Vladimir Petrov",
-            Some("1970-05-01"),
-            ListKind::OfacSdn,
-        )];
-        // Same name but a different DOB and no other shared identifier → false positive, suppressed.
+    fn screening_suppresses_a_name_only_pep_match() {
+        // PEP / adverse-media: a name-only hit with no shared identifier is a likely false positive
+        // and stays suppressed (the corroboration FP-control still applies to non-sanctions lists).
+        let wl = [entry("John Smith", Some("1970-05-01"), ListKind::Pep)];
         let alerts = screen(
-            &subject("Vladimir Petrov", Some("1991-12-31")),
+            &subject("John Smith", Some("1991-12-31")),
             &wl,
             &ScreeningConfig::default(),
         );
+        assert!(alerts.is_empty());
+    }
+
+    #[test]
+    fn screening_alerts_on_strong_ofac_match_without_corroboration() {
+        // F1 regression: an OFAC SDN entry with NO secondary identifiers must still alert on a
+        // strong name match — sanctions cannot be suppressed to nothing for lack of a DOB.
+        let wl = [entry("Vladimir Petrov", None, ListKind::OfacSdn)];
+        let alerts = screen(
+            &subject("Vladimir Petrov", None),
+            &wl,
+            &ScreeningConfig::default(),
+        );
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].list, ListKind::OfacSdn);
+        assert!(alerts[0].corroborated_by.is_empty());
+    }
+
+    #[test]
+    fn screening_suppresses_sub_strong_uncorroborated_ofac_match() {
+        // With the strong-gate set above any achievable score, an uncorroborated SDN match is
+        // suppressed — confirming the fix opens the gate only for STRONG matches, not a blanket
+        // alert-on-any-name.
+        let cfg = ScreeningConfig {
+            name_threshold: 0.88,
+            sanctions_strong_threshold: 1.01,
+        };
+        let wl = [entry("Vladimir Petrov", None, ListKind::OfacSdn)];
+        let alerts = screen(&subject("Vladimir Petrov", None), &wl, &cfg);
         assert!(alerts.is_empty());
     }
 

@@ -146,6 +146,14 @@ fn band_for_score(score: f64) -> RiskBand {
 /// probability and the minimum-expected-cost action is chosen. Returns `(band, action, fused_score)`.
 #[must_use]
 pub fn fuse_ev(eval: &Evaluation, model_score: f64, costs: &CostMatrix) -> (RiskBand, Action, f64) {
+    // Fail safe on a non-finite model score: NaN/inf would propagate through `clamp` (which passes
+    // NaN through) and make every expected cost NaN, panicking the `min_by` comparator. Treat a
+    // non-finite score as maximum risk rather than crashing the decision.
+    let model_score = if model_score.is_finite() {
+        model_score
+    } else {
+        1.0
+    };
     if eval.is_hard_decline() {
         return (RiskBand::VeryHigh, Action::Decline, model_score.max(0.99));
     }
@@ -328,6 +336,14 @@ mod tests {
         assert_eq!(action, Action::Decline);
         assert_eq!(band, RiskBand::VeryHigh);
         assert!((score - 0.95).abs() < 1e-9);
+    }
+
+    #[test]
+    fn fusion_ev_nan_score_does_not_panic() {
+        // A non-finite model score must not panic the comparator; it is treated as max risk.
+        let (_, action, score) = fuse_ev(&Evaluation::default(), f64::NAN, &CostMatrix::default());
+        assert_eq!(action, Action::Decline);
+        assert!(score.is_finite());
     }
 
     #[test]

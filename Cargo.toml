@@ -46,5 +46,8 @@ strsim = "0.11"
 all = "warn"
 
 [profile.release]
+# Money/amount math must never wrap silently in a financial system — a loud panic (caught off the
+# hot path) beats a corrupted amount. The hot path itself uses checked_* money arithmetic.
+overflow-checks = true
 lto = "thin"
 codegen-units = 1

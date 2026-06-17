@@ -117,7 +117,9 @@ pub fn evaluate(txns: &[AmlTransaction], config: &AmlConfig) -> Vec<AmlAlert> {
     for out in debits() {
         let matched = credits().any(|inb| {
             let dt = (inb.at - out.at).whole_seconds().abs();
-            let diff = (inb.amount_minor - out.amount_minor).unsigned_abs() as f64;
+            // Widen to i128 so the difference of two i64 amounts can never overflow.
+            let diff =
+                (i128::from(inb.amount_minor) - i128::from(out.amount_minor)).unsigned_abs() as f64;
             dt <= config.round_trip_window_secs
                 && diff <= config.round_trip_tolerance * out.amount_minor as f64
         });
