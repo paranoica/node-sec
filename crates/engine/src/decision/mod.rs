@@ -2,8 +2,8 @@
 //!
 //! [`fuse`] is the rules-only heuristic used by [`RulesDecider`]. [`fuse_ev`] (T032) adds the model
 //! score and selects the action by **expected value** over a [`CostMatrix`]; a hard rule override
-//! always wins. Wiring `fuse_ev` into the gRPC path (assemble feature vector → `model` score →
-//! `fuse_ev`) is the remaining integration step.
+//! always wins. `fuse_ev` is wired into the live hot path by [`crate::degrade::FeatureAwareDecider`]
+//! (assemble feature vector → `model` score → `fuse_ev`), reached through the gRPC engine.
 
 use std::sync::Arc;
 
