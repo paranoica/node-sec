@@ -65,7 +65,10 @@ impl Geo {
         let dlat = (other.lat - self.lat).to_radians();
         let dlon = (other.lon - self.lon).to_radians();
         let a = (dlat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
-        2.0 * EARTH_RADIUS_KM * a.sqrt().asin()
+        // Clamp before asin: floating-point error can push `a` slightly above 1.0 for near-antipodal
+        // points, and asin(>1) is NaN — which would make `speed > max` always false and silently drop
+        // a genuine impossible-travel signal. Clamp to the valid asin domain.
+        2.0 * EARTH_RADIUS_KM * a.sqrt().clamp(0.0, 1.0).asin()
     }
 }
 
@@ -205,6 +208,20 @@ mod tests {
     use super::*;
     use crate::money::Currency;
     use time::macros::datetime;
+
+    #[test]
+    fn distance_is_finite_for_near_antipodal_points() {
+        // Near-antipodal points can push the haversine `a` just over 1.0; the result must stay a
+        // finite (large) distance, never NaN — a NaN speed would silently evade impossible-travel.
+        let a = Geo::new("NZ", -36.85, 174.76);
+        let b = Geo::new("ES", 36.85, -5.24); // roughly antipodal
+        let d = a.distance_km(&b);
+        assert!(d.is_finite(), "distance must be finite, got {d}");
+        assert!(
+            d > 18_000.0,
+            "near-antipodal distance should be ~half Earth circumference"
+        );
+    }
 
     fn sample() -> Transaction {
         Transaction::new(

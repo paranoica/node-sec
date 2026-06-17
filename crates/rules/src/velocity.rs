@@ -66,7 +66,9 @@ impl VelocityTracker {
         amount: &AmountAnomaly,
     ) -> Vec<RuleHit> {
         let now = txn.occurred_at;
-        let mut state = self.state.lock().expect("velocity state poisoned");
+        // Recover a poisoned lock (data is intact; poisoning only flags a prior panic) so one
+        // panicked request can never wedge the velocity stage for every subsequent decision.
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let mut hits = Vec::new();
 
         if let Some(device) = &txn.device {
@@ -160,7 +162,9 @@ impl VelocityTracker {
     pub fn record_decline(&self, txn: &Transaction, cfg: &VelocityConfig) {
         let Some(pan) = &txn.pan else { return };
         let now = txn.occurred_at;
-        let mut state = self.state.lock().expect("velocity state poisoned");
+        // Recover a poisoned lock (data is intact; poisoning only flags a prior panic) so one
+        // panicked request can never wedge the velocity stage for every subsequent decision.
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let dq = state.card_declines.entry(pan.redacted()).or_default();
         dq.push_back(now);
         evict_ts(dq, now, cfg.decline_retry.window_secs);
