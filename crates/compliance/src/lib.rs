@@ -7,6 +7,7 @@
 pub mod aml;
 pub mod audit;
 pub mod cases;
+pub mod feedback;
 pub mod sar;
 pub mod screening;
 
@@ -15,6 +16,9 @@ pub use audit::{
     AuditError, AuditRecord, AuditSink, InMemoryAuditSink, PostgresAuditSink, ReproducedDecision,
 };
 pub use cases::{Case, CaseError, CaseState, ReviewQueue};
+pub use feedback::{
+    label_from_disposition, InMemoryLabelStore, InvestigatorLabel, LabelStore, Outcome,
+};
 pub use sar::{
     generate_sar, maybe_ctr, CurrencyTransactionReport, SarConfig, SarInput,
     SuspiciousActivityReport,
