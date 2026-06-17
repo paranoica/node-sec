@@ -111,8 +111,11 @@ coverage.xml
 .review/index.json
 .review/outcomes.jsonl
 
-# design-creator — ignore ONLY the heavy mockup iterations
+# design-creator — ignore mockup iterations + regenerable QA render dirs
+# (tokens.json + journal.md are source-of-truth and stay committed; verify/* is rebuilt by verify.mjs)
 .design/mockups/
+.design/verify/
+.design/verify-analyst/
 
 # code-review local working state (report, receipts)
 .review/

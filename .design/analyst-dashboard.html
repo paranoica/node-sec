@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>node-sec · analyst console</title>
+<style>
+  /* ---- token contract (.design/tokens.json) ---- */
+  :root{
+    --bg:#0b0f14; --surface:#121822; --raised:#1a2230; --line:#26303f; --line-strong:#34415380;
+    --text:#e6edf3; --muted:#b2bfce; --faint:#93a1b3; --accent:#f0a52a; --accent-dim:#f0a52a26; --track:#1c2632;
+    --r-xs:3px; --r-sm:5px; --r-md:8px;
+    --t-direct:140ms; --t-reveal:280ms; --t-spine:360ms; --ease:cubic-bezier(.4,0,.2,1);
+    --ui:"Söhne","Suisse Int'l",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"JetBrains Mono","Cascadia Code","SF Mono",ui-monospace,"DejaVu Sans Mono",monospace;
+    --row-h:46px;
+  }
+  /* light tokens — applied when the OS prefers light (default), or forced via [data-theme="light"] */
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#eef1f5; --surface:#ffffff; --raised:#f7f9fb; --line:#dce3ec; --line-strong:#c2cdda;
+      --text:#16202b; --muted:#46525f; --faint:#586573; --accent:#b46a00; --accent-dim:#b46a0014; --track:#e7ecf2;
+    }
+  }
+  html[data-theme="light"]{
+    --bg:#eef1f5; --surface:#ffffff; --raised:#f7f9fb; --line:#dce3ec; --line-strong:#c2cdda;
+    --text:#16202b; --muted:#46525f; --faint:#586573; --accent:#b46a00; --accent-dim:#b46a0014; --track:#e7ecf2;
+  }
+  /* explicit dark override (wins over an OS light preference) */
+  html[data-theme="dark"]{
+    --bg:#0b0f14; --surface:#121822; --raised:#1a2230; --line:#26303f; --line-strong:#34415380;
+    --text:#e6edf3; --muted:#b2bfce; --faint:#93a1b3; --accent:#f0a52a; --accent-dim:#f0a52a26; --track:#1c2632;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  /* full-height app shell with its own internal scroll regions — the document never scrolls, and
+     clipping here stops the off-canvas detail drawer from inflating the horizontal scroll width. */
+  html{overflow:clip}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--ui); font-size:13px; line-height:1.45;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    /* full-height app shell with its own internal scroll regions — body never scrolls, and this
+       clips the off-canvas detail drawer so it can't inflate the horizontal scroll width. */
+    overflow:clip;
+  }
+  .mono{font-family:var(--mono); font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
+  ::selection{background:var(--accent-dim)}
+
+  /* ---- shell ---- */
+  .app{display:grid; grid-template-rows:auto 1fr; height:100vh; height:100dvh}
+  .topbar{
+    display:flex; align-items:center; gap:16px; height:52px; padding:0 16px;
+    border-bottom:1px solid var(--line); background:var(--surface);
+  }
+  .brand{display:flex; align-items:baseline; gap:8px; font-weight:600; letter-spacing:-.01em}
+  .brand b{color:var(--text)}
+  .brand span{color:var(--faint); font-weight:500}
+  .brand .dot{width:6px; height:6px; border-radius:50%; background:var(--accent); align-self:center;
+    box-shadow:0 0 0 0 var(--accent-dim)}
+  .live{display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12px}
+  .live .pulse{width:7px; height:7px; border-radius:50%; background:var(--accent); position:relative}
+  .live .pulse::after{content:""; position:absolute; inset:0; border-radius:50%; background:var(--accent);
+    animation:ping 2.4s var(--ease) infinite}
+  @keyframes ping{0%{transform:scale(1);opacity:.6}70%,100%{transform:scale(3.2);opacity:0}}
+  .spacer{flex:1}
+  .stat{display:flex; flex-direction:column; align-items:flex-end; line-height:1.1}
+  .stat b{font-size:15px} .stat small{color:var(--faint); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase}
+  .iconbtn{
+    width:44px; height:44px; display:grid; place-items:center; border:1px solid var(--line);
+    background:transparent; color:var(--muted); border-radius:var(--r-sm); cursor:pointer;
+    transition:color var(--t-direct) var(--ease), border-color var(--t-direct) var(--ease), background var(--t-direct) var(--ease);
+  }
+  .iconbtn:hover{color:var(--text); border-color:var(--line-strong); background:var(--raised)}
+  .iconbtn svg{width:18px; height:18px}
+  .iconbtn .sun{display:none}
+  @media (prefers-color-scheme: light){
+    html:not([data-theme]) .iconbtn .sun{display:block}
+    html:not([data-theme]) .iconbtn .moon{display:none}
+  }
+  html[data-theme="light"] .iconbtn .sun{display:block}
+  html[data-theme="light"] .iconbtn .moon{display:none}
+  html[data-theme="dark"] .iconbtn .sun{display:none}
+  html[data-theme="dark"] .iconbtn .moon{display:block}
+
+  /* ---- main split ---- */
+  .main{display:grid; grid-template-columns:minmax(0,1fr) 384px; min-height:0}
+  .queue{display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--line)}
+
+  /* ---- queue header / risk axis ---- */
+  .qhead{display:flex; align-items:center; height:36px; padding:0 14px 0 0; border-bottom:1px solid var(--line);
+    background:var(--surface); color:var(--faint); font-size:10.5px; letter-spacing:.07em; text-transform:uppercase}
+  .lane-head{width:var(--lane,196px); position:relative; height:100%; flex:none}
+  .lane-head .lbl{position:absolute; top:50%; transform:translate(-50%,-50%); font-size:9.5px}
+  .lane-head .cap{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted); letter-spacing:.1em}
+  .qhead .col{flex:1; padding-left:14px}
+  .qhead .col.n{flex:none; width:64px; text-align:right; padding-right:6px}
+  .qhead .col.s{flex:none; width:104px}
+
+  /* ---- the risk-spine list ---- */
+  .listwrap{position:relative; overflow-y:auto; flex:1; min-height:0}
+  .grid-lines{position:absolute; top:0; bottom:0; left:0; width:var(--lane,196px); pointer-events:none}
+  .grid-lines i{position:absolute; top:0; bottom:0; width:1px; background:var(--line); opacity:.5}
+  ul.list{list-style:none; margin:0; padding:0; position:relative; z-index:1}
+  .row{
+    display:flex; align-items:center; width:100%; height:var(--row-h); padding:0 14px 0 0;
+    background:transparent; border:0; border-bottom:1px solid var(--line); border-left:2px solid transparent;
+    color:var(--text); text-align:left; cursor:pointer; font:inherit;
+    transition:background var(--t-direct) var(--ease), border-color var(--t-direct) var(--ease);
+  }
+  .row:nth-child(even){background:color-mix(in srgb, var(--surface) 45%, transparent)}
+  .row:hover{background:var(--raised)}
+  .row[aria-selected="true"]{background:var(--accent-dim); border-left-color:var(--accent)}
+  .row:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+
+  .lane{width:var(--lane,196px); flex:none; height:100%; position:relative; display:flex; align-items:center; padding-left:12px}
+  .bar{position:relative; height:8px; width:calc(var(--lane,196px) - 64px); background:var(--track); border-radius:var(--r-xs); overflow:hidden}
+  .bar .fill{position:absolute; left:0; top:0; bottom:0; width:calc(var(--risk) * 100%);
+    background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 55%,var(--track)),var(--accent));
+    border-radius:var(--r-xs); transition:width var(--t-spine) var(--ease)}
+  .lane .num{position:absolute; right:8px; top:50%; transform:translateY(-50%); font-size:12.5px; font-weight:600;
+    color:var(--text); letter-spacing:-.02em}
+  .lane .tip{position:absolute; top:50%; height:14px; width:2px; background:var(--accent); transform:translate(-1px,-50%);
+    left:calc(12px + (var(--lane,196px) - 64px) * var(--risk)); transition:left var(--t-spine) var(--ease)}
+  .row[data-tier="crit"] .tip{height:20px; width:3px}
+
+  .subject{flex:1; padding-left:14px; min-width:0; display:flex; flex-direction:column; gap:1px}
+  .subject .sid{font-size:13px; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .subject .meta{font-size:10.5px; color:var(--faint)}
+  .tier{flex:none; width:104px; font-size:10px; letter-spacing:.08em; color:var(--muted)}
+  .tier b{color:var(--text); font-weight:600}
+  .acount{flex:none; width:64px; text-align:right; padding-right:6px; color:var(--muted); font-size:12px}
+  .acount.zero{color:var(--faint)}
+  .chev{flex:none; width:18px; color:var(--faint); display:grid; place-items:center}
+  .chev svg{width:14px;height:14px; transition:transform var(--t-direct) var(--ease)}
+  .row[aria-selected="true"] .chev svg{transform:translateX(2px); color:var(--accent)}
+
+  .row.enter{animation:rowin var(--t-spine) var(--ease)}
+  @keyframes rowin{from{opacity:0; clip-path:inset(0 0 100% 0)}to{opacity:1; clip-path:inset(0 0 0 0)}}
+
+  /* ---- detail panel ---- */
+  .detail{background:var(--surface); min-height:0; overflow-y:auto; display:flex; flex-direction:column}
+  .detail-empty{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--faint); padding:24px; text-align:center}
+  .detail-empty svg{width:30px; height:30px; opacity:.5}
+  .dpanel{padding:18px 18px 28px; display:none}
+  .dpanel.show{display:block; animation:slidein var(--t-reveal) var(--ease)}
+  @keyframes slidein{from{opacity:0; transform:translateX(10px)}to{opacity:1; transform:none}}
+  .dhead{display:flex; align-items:flex-start; gap:14px; margin-bottom:18px}
+  .bignum{font-size:46px; font-weight:650; letter-spacing:-.03em; line-height:.9}
+  .dhead .who{flex:1; min-width:0}
+  .dhead .who .case{font-size:11px; color:var(--faint); letter-spacing:.04em}
+  .dhead .who .subj{font-size:18px; letter-spacing:-.01em; margin:2px 0}
+  .statepill{display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--muted);
+    border:1px solid var(--line); border-radius:var(--r-sm); padding:3px 8px}
+  .statepill .sq{width:7px; height:7px; border-radius:2px; background:var(--accent)}
+  .riskmeta{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); margin-top:4px}
+
+  .sect{border-top:1px solid var(--line); padding:14px 0}
+  .sect h3{margin:0 0 9px; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600}
+  .chips{display:flex; flex-wrap:wrap; gap:6px}
+  .chip{font-size:11.5px; border:1px solid var(--line); border-radius:var(--r-sm); padding:3px 8px; color:var(--text); background:var(--raised)}
+  .chip.alert{border-color:var(--accent); color:var(--text)}
+  .ev{display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line)}
+  .ev:last-child{border-bottom:0}
+  .ev .k{flex:none; width:84px; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--faint); padding-top:1px}
+  .ev .d{flex:1; font-size:12.5px; color:var(--text)}
+  .codes{display:flex; flex-wrap:wrap; gap:6px}
+  .code{font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:var(--r-xs); padding:2px 6px}
+  .glink{display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); font-size:12px}
+  .glink:last-child{border-bottom:0}
+  .glink .rel{color:var(--faint); font-size:10.5px; letter-spacing:.04em; width:84px; flex:none}
+  .glink .cp{flex:1; color:var(--text)}
+  .glink .w{width:62px; flex:none; text-align:right}
+  .glink .wbar{width:46px; height:4px; background:var(--track); border-radius:2px; overflow:hidden; flex:none}
+  .glink .wbar i{display:block; height:100%; background:var(--accent); width:calc(var(--w)*100%)}
+  .none{color:var(--faint); font-size:12px; font-style:normal}
+
+  /* ---- skeleton ---- */
+  .sk{height:var(--row-h); border-bottom:1px solid var(--line); display:flex; align-items:center; gap:14px; padding:0 14px}
+  .sk i{display:block; height:8px; border-radius:var(--r-xs); background:var(--track);
+    background-image:linear-gradient(90deg,transparent,color-mix(in srgb,var(--text) 6%,transparent),transparent);
+    background-size:200% 100%; animation:shimmer 1.3s linear infinite}
+  @keyframes shimmer{to{background-position:-200% 0}}
+
+  /* ---- empty queue ---- */
+  .queue-empty{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--faint); text-align:center; padding:24px}
+
+  /* ---- detail close (mobile drawer) ---- */
+  .dclose{display:none}
+  .scrim{display:none}
+
+  /* ---- responsive: detail becomes a right drawer ---- */
+  @media (max-width:880px){
+    .main{grid-template-columns:1fr}
+    .queue{border-right:0}
+    .detail{position:fixed; top:0; right:0; bottom:0; width:min(384px,92vw); z-index:30;
+      border-left:1px solid var(--line); box-shadow:-24px 0 48px -24px rgba(0,0,0,.5);
+      transform:translateX(100%); transition:transform var(--t-reveal) var(--ease); visibility:hidden}
+    .detail.open{transform:none; visibility:visible}
+    .scrim{display:block; position:fixed; inset:0; background:rgba(2,6,12,.5); z-index:20; opacity:0;
+      pointer-events:none; transition:opacity var(--t-reveal) var(--ease)}
+    .scrim.open{opacity:1; pointer-events:auto}
+    .dclose{display:grid; position:absolute; top:10px; right:10px}
+  }
+  @media (max-width:560px){
+    :root{--lane:128px}
+    .tier{display:none}
+    .qhead .col.s{display:none}
+    .lane .num{font-size:11px}
+    .bar{width:calc(var(--lane) - 50px)}
+    .lane .tip{left:calc(12px + (var(--lane) - 50px) * var(--risk))}
+    .topbar{gap:10px; padding:0 12px}
+    .brand span{display:none}
+    .live span{display:none}
+    .stat small{display:none}
+    .lane-head .lbl, .grid-lines{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
+    .live .pulse::after{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="dot" aria-hidden="true"></span><b>node-sec</b><span>analyst console</span></div>
+    <div class="live"><span class="pulse" aria-hidden="true"></span><span id="liveTxt">live · streaming</span></div>
+    <div class="spacer"></div>
+    <div class="stat"><b class="mono" id="openCount">0</b><small>open cases</small></div>
+    <button class="iconbtn" id="themeBtn" aria-label="Toggle colour theme">
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </header>
+
+  <div class="main">
+    <section class="queue" aria-label="Risk-prioritised review queue">
+      <div class="qhead">
+        <div class="lane-head" id="laneHead">
+          <span class="cap">RISK</span>
+          <span class="lbl" style="left:calc(12px + (var(--lane,196px) - 64px)*.25)">.25</span>
+          <span class="lbl" style="left:calc(12px + (var(--lane,196px) - 64px)*.5)">.50</span>
+          <span class="lbl" style="left:calc(12px + (var(--lane,196px) - 64px)*.75)">.75</span>
+        </div>
+        <div class="col">Subject</div>
+        <div class="col s">Tier</div>
+        <div class="col n">Alerts</div>
+        <div class="col" style="flex:none;width:18px"></div>
+      </div>
+      <div class="listwrap" id="listwrap">
+        <div class="grid-lines" aria-hidden="true">
+          <i style="left:calc(12px + (var(--lane,196px) - 64px)*.25)"></i>
+          <i style="left:calc(12px + (var(--lane,196px) - 64px)*.5)"></i>
+          <i style="left:calc(12px + (var(--lane,196px) - 64px)*.75)"></i>
+        </div>
+        <ul class="list" id="list" role="listbox" aria-label="Cases by risk" tabindex="0"></ul>
+      </div>
+    </section>
+
+    <aside class="detail" id="detail" aria-label="Case detail">
+      <button class="iconbtn dclose" id="dclose" aria-label="Close case detail">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="detail-empty" id="detailEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h18M3 19h10"/></svg>
+        <div>Select a case to review its alerts, evidence and links.</div>
+      </div>
+      <div class="dpanel" id="dpanel"></div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
+  const $ = (s, r=document) => r.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+  // ---- mock GET /queue : the documented CaseView shape ----
+  const SUBJ = ["acct-9241","acct-3387","acct-7710","card:4012•••5521","acct-5560","acct-1108","acct-8834","wallet:0x71c•••","acct-2245","acct-6093","acct-4471","card:5391•••0042","acct-9980","acct-3019"];
+  const ALERTS = ["aml:structuring","sanctions:near-match","rules:velocity","rules:amount-anomaly","aml:funnel","p2p:app-fraud","crypto:taint","mcc:high-risk","aml:round-tripping"];
+  const CODES = ["R02_VELOCITY","R07_GEO_RISK","R11_AMOUNT","R19_DEVICE","MODEL_HIGH_VELOCITY_5M","CRYPTO_SANCTIONS","P2P_APP_NEW_PAYEE"];
+  const RELS = ["funds-to","shared-device","funds-from","co-signer"];
+  const STATES = ["alert","triage","investigate"];
+  let seed = 7; const rnd = () => (seed = (seed*1103515245+12345)&0x7fffffff)/0x7fffffff;
+  const pick = a => a[Math.floor(rnd()*a.length)];
+  const tierOf = r => r>=0.85?"crit":r>=0.6?"high":r>=0.3?"med":"low";
+  const tierLbl = {crit:"VERY HIGH",high:"HIGH",med:"MEDIUM",low:"LOW"};
+
+  let n = 0;
+  function makeCase(risk){
+    risk = risk ?? +(0.06 + rnd()*0.92).toFixed(2);
+    const na = Math.floor(rnd()*4), ne = Math.floor(rnd()*3), ng = Math.floor(rnd()*3), nc = Math.floor(rnd()*3);
+    const al = [...new Set(Array.from({length:na},()=>pick(ALERTS)))];
+    return {
+      case_id:"case-"+(1000+(n++)), subject:pick(SUBJ), risk, state:pick(STATES),
+      alerts: al,
+      evidence: Array.from({length:ne},()=>({kind:pick(["velocity","device","sanctions","geo","amount"]), detail:pick(["7 sub-CTR deposits in 24h","new device, first seen 4m ago","name 0.91 to OFAC SDN","impossible travel NZ→ES","8x the card's mean ticket"])})),
+      reason_codes:[...new Set(Array.from({length:nc},()=>pick(CODES)))],
+      graph_links: Array.from({length:ng},()=>({counterparty:pick(SUBJ), relation:pick(RELS), weight:+(0.3+rnd()*0.7).toFixed(2)}))
+    };
+  }
+  let cases = Array.from({length:22},()=>makeCase()).sort((a,b)=>b.risk-a.risk);
+
+  const list = $("#list"), detail = $("#detail"), dpanel = $("#dpanel"),
+        detailEmpty = $("#detailEmpty"), scrim = $("#scrim"), openCount = $("#openCount");
+  let selected = null;
+  const drawerMode = () => matchMedia("(max-width:880px)").matches;
+
+  function rowHTML(c){
+    const tier = tierOf(c.risk), an = c.alerts.length;
+    return `<li class="row mono" role="option" tabindex="-1" data-id="${c.case_id}" data-tier="${tier}"
+        aria-selected="false" style="--risk:${c.risk}"
+        aria-label="${esc(c.subject)}, risk ${c.risk.toFixed(2)}, ${tierLbl[tier]}, ${an} alerts">
+      <span class="lane" aria-hidden="true">
+        <span class="bar"><span class="fill"></span></span>
+        <span class="tip"></span>
+        <span class="num">${c.risk.toFixed(2)}</span>
+      </span>
+      <span class="subject"><span class="sid">${esc(c.subject)}</span><span class="meta">${esc(c.case_id)} · ${esc(c.state)}</span></span>
+      <span class="tier">tier <b>${tierLbl[tier]}</b></span>
+      <span class="acount ${an?"":"zero"}">${an? an : "—"}</span>
+      <span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+    </li>`;
+  }
+  function render(){
+    openCount.textContent = cases.length;
+    if(!cases.length){
+      list.innerHTML = `<div class="queue-empty"><div>No open cases.</div><div style="font-size:11px">The queue is clear — new alerts will appear here.</div></div>`;
+      return;
+    }
+    list.innerHTML = cases.map(rowHTML).join("");
+    // paint bar fills after layout so the first frame animates
+    requestAnimationFrame(()=>list.querySelectorAll(".fill").forEach(f=>f.style.width="calc(var(--risk)*100%)"));
+    if(selected) markSel(selected);
+  }
+  function markSel(id){
+    list.querySelectorAll(".row").forEach(r=>{
+      const on = r.dataset.id===id; r.setAttribute("aria-selected", on); if(on) r.tabIndex=0;
+    });
+  }
+
+  function detailHTML(c){
+    const tier=tierOf(c.risk);
+    const alerts = c.alerts.length ? c.alerts.map(a=>`<span class="chip alert">${esc(a)}</span>`).join("") : `<span class="none">No alerts on this case.</span>`;
+    const ev = c.evidence.length ? c.evidence.map(e=>`<div class="ev"><span class="k">${esc(e.kind)}</span><span class="d">${esc(e.detail)}</span></div>`).join("") : `<span class="none">No supporting evidence recorded.</span>`;
+    const codes = c.reason_codes.length ? c.reason_codes.map(x=>`<span class="code mono">${esc(x)}</span>`).join("") : `<span class="none">No model reason codes.</span>`;
+    const links = c.graph_links.length ? c.graph_links.map(g=>`<div class="glink"><span class="rel">${esc(g.relation)}</span><span class="cp mono">${esc(g.counterparty)}</span><span class="wbar" style="--w:${g.weight}"><i></i></span><span class="w mono">${g.weight.toFixed(2)}</span></div>`).join("") : `<span class="none">No connected entities.</span>`;
+    return `<div class="dhead">
+        <div class="bignum mono" data-target="${c.risk}">0.00</div>
+        <div class="who"><div class="case mono">${esc(c.case_id)}</div><div class="subj">${esc(c.subject)}</div>
+          <span class="statepill"><span class="sq" aria-hidden="true"></span>${esc(c.state)}</span>
+          <div class="riskmeta">risk · ${tierLbl[tier]}</div></div>
+      </div>
+      <div class="sect"><h3>Alerts</h3><div class="chips">${alerts}</div></div>
+      <div class="sect"><h3>Evidence</h3>${ev}</div>
+      <div class="sect"><h3>Reason codes</h3><div class="codes">${codes}</div></div>
+      <div class="sect"><h3>Graph links</h3>${links}</div>`;
+  }
+  function countUp(el){
+    const target=+el.dataset.target;
+    if(reduce){ el.textContent=target.toFixed(2); return; }
+    const t0=performance.now(), dur=560;
+    const step=now=>{ const p=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-p,3);
+      el.textContent=(target*e).toFixed(2); if(p<1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  function select(id, openDrawer=true){
+    const c = cases.find(x=>x.case_id===id); if(!c) return;
+    selected=id; markSel(id);
+    detailEmpty.style.display="none"; dpanel.classList.add("show");
+    dpanel.innerHTML = detailHTML(c);
+    countUp($(".bignum",dpanel));
+    // Only open the off-canvas drawer on an explicit row activation — never on the initial
+    // auto-select, which would push the fixed panel off-screen and overflow the viewport.
+    if(openDrawer && drawerMode()){ detail.classList.add("open"); scrim.classList.add("open"); }
+  }
+  function closeDrawer(){ detail.classList.remove("open"); scrim.classList.remove("open"); }
+
+  // ---- events ----
+  list.addEventListener("click", e=>{ const r=e.target.closest(".row"); if(r) select(r.dataset.id); });
+  list.addEventListener("keydown", e=>{
+    if(!["ArrowDown","ArrowUp","Enter"," "].includes(e.key)) return;
+    const rows=[...list.querySelectorAll(".row")]; if(!rows.length) return;
+    let i = rows.findIndex(r=>r.dataset.id===selected);
+    if(e.key==="ArrowDown"){ e.preventDefault(); i=Math.min(rows.length-1,i+1); }
+    else if(e.key==="ArrowUp"){ e.preventDefault(); i=Math.max(0,i<0?0:i-1); }
+    else if(i<0) i=0;
+    select(rows[i].dataset.id); rows[i].focus();
+  });
+  $("#dclose").addEventListener("click", closeDrawer);
+  scrim.addEventListener("click", closeDrawer);
+  $("#themeBtn").addEventListener("click", ()=>{
+    const h=document.documentElement;
+    const cur = h.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    h.dataset.theme = cur==="dark" ? "light" : "dark";
+  });
+
+  // ---- skeleton → load ----
+  list.closest(".listwrap");
+  const lw=$("#listwrap");
+  $("#list").style.display="none";
+  const sk=document.createElement("div"); sk.id="sk";
+  sk.innerHTML=Array.from({length:9},()=>`<div class="sk"><i style="width:64%"></i><i style="width:18%;margin-left:auto"></i></div>`).join("");
+  lw.appendChild(sk);
+  setTimeout(()=>{ sk.remove(); $("#list").style.display=""; render(); select(cases[0].case_id, false); }, reduce?0:680);
+
+  // ---- live: a new case streams onto the spine ----
+  if(!reduce){
+    setInterval(()=>{
+      if(document.hidden) return;
+      cases.push(makeCase()); cases.sort((a,b)=>b.risk-a.risk);
+      if(cases.length>40) cases.pop();
+      const idx=cases.findIndex(c=>c.risk===cases[cases.findIndex(x=>x.case_id===cases[0].case_id)]?.risk); // noop guard
+      render();
+      // flag the freshly inserted row (highest new) — find a row without prior fill anim
+      const newest = cases.find(c=>c.case_id===("case-"+(1000+n-1)));
+      if(newest){ const el=list.querySelector(`[data-id="${newest.case_id}"]`); if(el) el.classList.add("enter"); }
+    }, 4200);
+  }
+})();
+</script>
+</body>
+</html>
