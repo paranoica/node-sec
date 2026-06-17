@@ -15,4 +15,4 @@ pub mod transaction;
 pub use decision::{Action, Decision, ReasonCode, RiskBand, RiskScore};
 pub use ids::{AccountId, Bin, CounterpartyId, DeviceId, MerchantId, Pan, TransactionId};
 pub use money::{Currency, Money, MoneyError};
-pub use transaction::{Channel, Transaction, Vertical};
+pub use transaction::{Channel, Geo, Transaction, Vertical};

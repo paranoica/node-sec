@@ -35,6 +35,40 @@ pub enum Channel {
     CryptoDeposit,
 }
 
+/// An approximate geolocation for a transaction (from IP geo-lookup or device GPS).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Geo {
+    /// ISO 3166-1 alpha-2 country code.
+    pub country: String,
+    /// Latitude in degrees.
+    pub lat: f64,
+    /// Longitude in degrees.
+    pub lon: f64,
+}
+
+impl Geo {
+    /// Build a geolocation.
+    #[must_use]
+    pub fn new(country: impl Into<String>, lat: f64, lon: f64) -> Self {
+        Self {
+            country: country.into(),
+            lat,
+            lon,
+        }
+    }
+
+    /// Great-circle distance to another point in kilometres (haversine).
+    #[must_use]
+    pub fn distance_km(&self, other: &Geo) -> f64 {
+        const EARTH_RADIUS_KM: f64 = 6371.0;
+        let (lat1, lat2) = (self.lat.to_radians(), other.lat.to_radians());
+        let dlat = (other.lat - self.lat).to_radians();
+        let dlon = (other.lon - self.lon).to_radians();
+        let a = (dlat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
+        2.0 * EARTH_RADIUS_KM * a.sqrt().asin()
+    }
+}
+
 /// A money-movement event to be scored. Entity references are optional because they vary by
 /// vertical — a card payment carries a `pan` + `merchant`; a P2P push carries an `account` +
 /// `counterparty`. Build with [`Transaction::new`] plus the `with_*` setters.
@@ -62,6 +96,14 @@ pub struct Transaction {
     pub merchant: Option<MerchantId>,
     /// The counterparty / payee (P2P, crypto).
     pub counterparty: Option<CounterpartyId>,
+    /// Geolocation of the transaction, if known.
+    pub geo: Option<Geo>,
+    /// Merchant Category Code, if known.
+    pub mcc: Option<u32>,
+    /// AVS result: `Some(true)` match, `Some(false)` mismatch, `None` not checked.
+    pub avs_match: Option<bool>,
+    /// CVV result: `Some(true)` match, `Some(false)` mismatch, `None` not checked.
+    pub cvv_match: Option<bool>,
 }
 
 impl Transaction {
@@ -86,6 +128,10 @@ impl Transaction {
             ip: None,
             merchant: None,
             counterparty: None,
+            geo: None,
+            mcc: None,
+            avs_match: None,
+            cvv_match: None,
         }
     }
 
@@ -128,6 +174,28 @@ impl Transaction {
     #[must_use]
     pub fn with_counterparty(mut self, counterparty: CounterpartyId) -> Self {
         self.counterparty = Some(counterparty);
+        self
+    }
+
+    /// Attach a geolocation.
+    #[must_use]
+    pub fn with_geo(mut self, geo: Geo) -> Self {
+        self.geo = Some(geo);
+        self
+    }
+
+    /// Attach a Merchant Category Code.
+    #[must_use]
+    pub fn with_mcc(mut self, mcc: u32) -> Self {
+        self.mcc = Some(mcc);
+        self
+    }
+
+    /// Attach AVS and CVV check results.
+    #[must_use]
+    pub fn with_card_checks(mut self, avs_match: bool, cvv_match: bool) -> Self {
+        self.avs_match = Some(avs_match);
+        self.cvv_match = Some(cvv_match);
         self
     }
 }
