@@ -246,7 +246,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("rules.json");
 
-        std::fs::write(&path, r#"{"version":"v1","blocklists":{"bins":["411111"]}}"#).unwrap();
+        std::fs::write(
+            &path,
+            r#"{"version":"v1","blocklists":{"bins":["411111"]}}"#,
+        )
+        .unwrap();
         let engine = RulesEngine::from_path(&path).unwrap();
         assert!(engine.evaluate(&card_txn()).is_hard_decline());
 
