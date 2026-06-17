@@ -31,7 +31,7 @@
     - _accept:_ WHEN rule configuration is updated on disk THEN the engine SHALL load the new rules without a restart
     - _accept:_ WHEN an identifier matches a blocklist THEN the decision SHALL be a hard decline carrying the rule's reason code and typology tag
     - _verify (test):_ cargo test -p rules reload
-- [ ] **T012** Card rules: velocity, card-testing, BIN attack, decline-retry storm ← T011
+- [x] **T012** Card rules: velocity, card-testing, BIN attack, decline-retry storm ← T011
     - _accept:_ WHEN more than K declined authorisations occur for one card within window W THEN a decline-retry-storm rule SHALL fire
     - _accept:_ WHEN many distinct PANs sharing one BIN are tested within window W THEN a BIN-attack rule SHALL fire
     - _accept:_ WHEN a burst of low- or zero-value authorisations originates from one device/IP THEN a card-testing rule SHALL fire

@@ -204,7 +204,7 @@
       "id": "T012",
       "title": "Card rules: velocity, card-testing, BIN attack, decline-retry storm",
       "sprint": "S1-card-slice",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T011"
       ],
