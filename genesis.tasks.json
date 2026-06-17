@@ -756,7 +756,7 @@
       "id": "T042",
       "title": "Graph features (centrality, community, shortest-path-to-bad) → online store",
       "sprint": "S4-graph",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T041"
       ],

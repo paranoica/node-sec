@@ -110,7 +110,7 @@
 - [x] **T041** Transaction graph construction (temporal, weighted) ← T040
     - _accept:_ WHEN transactions are processed THEN a directed, time-stamped, weighted transaction graph SHALL be built and updated with amount/count/recency edge attributes
     - _verify (test):_ cargo test -p graph txn_graph
-- [ ] **T042** Graph features (centrality, community, shortest-path-to-bad) → online store ← T041
+- [x] **T042** Graph features (centrality, community, shortest-path-to-bad) → online store ← T041
     - _accept:_ WHEN the graph batch runs THEN per-node centrality (PageRank, personalised-PageRank from known-bad), community id/size, and shortest-path-to-bad features SHALL be materialised to the online feature store
     - _verify (test):_ pytest ml/tests/test_graph_features.py
 - [ ] **T043** Ring + temporal-motif detection (cycles, fan-in/out, scatter-gather) ← T041
