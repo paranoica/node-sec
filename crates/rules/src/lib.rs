@@ -7,6 +7,8 @@
 
 pub mod config;
 pub mod engine;
+pub mod velocity;
 
-pub use config::{Blocklists, CompiledConfig, ConfigError, RulesConfig};
+pub use config::{Blocklists, CompiledConfig, ConfigError, RulesConfig, VelocityConfig};
 pub use engine::{Disposition, Evaluation, RuleHit, RulesEngine};
+pub use velocity::VelocityTracker;

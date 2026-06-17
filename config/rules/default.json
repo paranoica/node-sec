@@ -7,5 +7,10 @@
     "ips": [],
     "merchants": [],
     "counterparties": []
+  },
+  "velocity": {
+    "card_testing": { "window_secs": 300, "max_low_value_auths": 5, "low_value_threshold_minor": 200 },
+    "bin_attack": { "window_secs": 300, "max_distinct_pans": 10 },
+    "decline_retry": { "window_secs": 600, "max_declines": 5 }
   }
 }

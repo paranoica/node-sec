@@ -12,6 +12,7 @@ use arc_swap::ArcSwap;
 use domain::{ReasonCode, Transaction};
 
 use crate::config::{self, CompiledConfig, ConfigError, RulesConfig};
+use crate::velocity::VelocityTracker;
 
 /// What a rule hit forces. T011 produces only hard declines (from blocklists); soft signals and
 /// hard approvals arrive with the scoring rules in later tasks.
@@ -62,6 +63,7 @@ impl Evaluation {
 pub struct RulesEngine {
     config: ArcSwap<CompiledConfig>,
     source: Option<PathBuf>,
+    velocity: VelocityTracker,
 }
 
 impl RulesEngine {
@@ -71,6 +73,7 @@ impl RulesEngine {
         Self {
             config: ArcSwap::from_pointee(config.into()),
             source: None,
+            velocity: VelocityTracker::new(),
         }
     }
 
@@ -84,6 +87,7 @@ impl RulesEngine {
         Ok(Self {
             config: ArcSwap::from_pointee(config.into()),
             source: Some(source),
+            velocity: VelocityTracker::new(),
         })
     }
 
@@ -145,7 +149,16 @@ impl RulesEngine {
             }
         }
 
+        // Velocity rules: record this attempt and append any burst/enumeration hits.
+        hits.extend(self.velocity.observe(txn, &config.velocity));
+
         Evaluation { hits }
+    }
+
+    /// Record a declined decision so the decline-retry-storm rule sees it on later attempts.
+    pub fn record_decline(&self, txn: &Transaction) {
+        self.velocity
+            .record_decline(txn, &self.config.load().velocity);
     }
 }
 
@@ -181,6 +194,7 @@ mod tests {
         RulesConfig {
             version: "test".to_string(),
             blocklists,
+            ..Default::default()
         }
     }
 

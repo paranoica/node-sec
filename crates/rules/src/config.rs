@@ -15,6 +15,81 @@ pub struct RulesConfig {
     /// Hard-deny lists by identifier kind.
     #[serde(default)]
     pub blocklists: Blocklists,
+    /// Velocity rule thresholds.
+    #[serde(default)]
+    pub velocity: VelocityConfig,
+}
+
+/// Velocity rule thresholds (card-testing, BIN-attack, decline-retry storm).
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+pub struct VelocityConfig {
+    /// Bursts of low-value auths from one device (card testing).
+    pub card_testing: CardTesting,
+    /// Many distinct PANs sharing one BIN (BIN enumeration).
+    pub bin_attack: BinAttack,
+    /// Repeated declines for one card (retry storm).
+    pub decline_retry: DeclineRetry,
+}
+
+/// Card-testing thresholds.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct CardTesting {
+    /// Sliding window in seconds.
+    pub window_secs: i64,
+    /// Fire above this many low-value auths per device in the window.
+    pub max_low_value_auths: u64,
+    /// "Low value" ceiling in minor units (auths at or below this count toward the burst).
+    pub low_value_threshold_minor: i64,
+}
+
+impl Default for CardTesting {
+    fn default() -> Self {
+        Self {
+            window_secs: 300,
+            max_low_value_auths: 5,
+            low_value_threshold_minor: 200,
+        }
+    }
+}
+
+/// BIN-attack thresholds.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct BinAttack {
+    /// Sliding window in seconds.
+    pub window_secs: i64,
+    /// Fire above this many distinct PANs sharing one BIN in the window.
+    pub max_distinct_pans: u64,
+}
+
+impl Default for BinAttack {
+    fn default() -> Self {
+        Self {
+            window_secs: 300,
+            max_distinct_pans: 10,
+        }
+    }
+}
+
+/// Decline-retry-storm thresholds.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct DeclineRetry {
+    /// Sliding window in seconds.
+    pub window_secs: i64,
+    /// Fire above this many declines for one card in the window.
+    pub max_declines: u64,
+}
+
+impl Default for DeclineRetry {
+    fn default() -> Self {
+        Self {
+            window_secs: 600,
+            max_declines: 5,
+        }
+    }
 }
 
 /// Deny lists; a match forces a hard decline.
@@ -57,6 +132,8 @@ pub struct CompiledConfig {
     pub merchants: HashSet<String>,
     /// Blocked counterparties.
     pub counterparties: HashSet<String>,
+    /// Velocity thresholds (numbers, no compilation needed).
+    pub velocity: VelocityConfig,
 }
 
 impl From<RulesConfig> for CompiledConfig {
@@ -69,6 +146,7 @@ impl From<RulesConfig> for CompiledConfig {
             ips: c.blocklists.ips.into_iter().collect(),
             merchants: c.blocklists.merchants.into_iter().collect(),
             counterparties: c.blocklists.counterparties.into_iter().collect(),
+            velocity: c.velocity,
         }
     }
 }
