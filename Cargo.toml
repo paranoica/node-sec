@@ -18,6 +18,7 @@ members = [
     "crates/simulator",
     "crates/api",
     "crates/verticals/p2p",
+    "crates/verticals/crypto",
 ]
 
 [workspace.package]
