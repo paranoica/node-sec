@@ -14,7 +14,7 @@
 - [x] **T003** Infra: docker-compose (Redpanda, Redis, Postgres, Prometheus, Grafana)
     - _accept:_ WHEN `docker compose up` is run THEN Redpanda, Redis, Postgres, Prometheus, and Grafana SHALL each become reachable on their documented ports and pass a healthcheck
     - _verify (manual):_ docker compose up -d && scripts/healthcheck.sh
-- [ ] **T004** Synthetic transaction generator v0 (legit baseline → backbone) ← T002, T003
+- [x] **T004** Synthetic transaction generator v0 (legit baseline → backbone) ← T002, T003
     - _accept:_ WHEN the generator runs at a configured rate R THEN it SHALL publish schema-valid transaction events to the event backbone at approximately R per second
     - _accept:_ WHERE an entity population size is configured THEN generated transactions SHALL reuse cards/accounts/devices from that population so velocity features are meaningful
     - _verify (test):_ cargo test -p simulator

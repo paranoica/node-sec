@@ -89,7 +89,7 @@
       "id": "T004",
       "title": "Synthetic transaction generator v0 (legit baseline → backbone)",
       "sprint": "S0-foundation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T002",
         "T003"
