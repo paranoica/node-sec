@@ -157,7 +157,7 @@
     - _accept:_ WHEN a payment is initiated shortly after an inbound call with segmented-typing / session-dead-time biometrics THEN a hold and a coercion-specific warning SHALL be applied
     - _accept:_ WHEN the recipient account is scored as a likely mule THEN inbound credit SHALL be held/frozen and a SAR SHALL be raised
     - _verify (test):_ cargo test -p verticals-p2p coercion
-- [ ] **T062** Crypto pack: on-chain ledger sim + address clustering ← T032
+- [x] **T062** Crypto pack: on-chain ledger sim + address clustering ← T032
     - _accept:_ WHEN the on-chain ledger is simulated THEN address clustering SHALL group common-input-ownership addresses while excluding CoinJoin transactions from the merge
     - _verify (test):_ cargo test -p verticals-crypto clustering
 - [ ] **T063** Crypto: taint tracing (FIFO) + exposure scoring ← T062

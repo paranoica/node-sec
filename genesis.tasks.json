@@ -1097,7 +1097,7 @@
       "id": "T062",
       "title": "Crypto pack: on-chain ledger sim + address clustering",
       "sprint": "S6-verticals-prod",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T032"
       ],
