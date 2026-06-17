@@ -1,0 +1,22 @@
+[project]
+name = "nodesec-ml"
+version = "0.1.0"
+description = "node-sec ML: model training, evaluation, and batch graph analytics."
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6.0",
+    "pytest>=8.0",
+]
+
+# Not an installable package — just a dependency/dev environment for the ml/ scripts and tests.
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
