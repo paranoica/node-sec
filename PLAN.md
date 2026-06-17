@@ -74,7 +74,7 @@
     - _verify (test):_ cargo test -p engine failsafe
 
 ## S3-ml-scoring
-- [ ] **T030** Python training pipeline (LightGBM, cost-sensitive, calibrated) ← T023
+- [x] **T030** Python training pipeline (LightGBM, cost-sensitive, calibrated) ← T023
     - _accept:_ WHEN the pipeline trains on labelled data THEN it SHALL produce a LightGBM model trained cost-sensitively and a calibrated score (isotonic or Platt)
     - _accept:_ WHEN the calibrated model is evaluated THEN its score SHALL approximate the true fraud probability on a held-out set
     - _verify (test):_ pytest ml/tests/test_train.py

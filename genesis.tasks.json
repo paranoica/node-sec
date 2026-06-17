@@ -489,7 +489,7 @@
       "id": "T030",
       "title": "Python training pipeline (LightGBM, cost-sensitive, calibrated)",
       "sprint": "S3-ml-scoring",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T023"
       ],
