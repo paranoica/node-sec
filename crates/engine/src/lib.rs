@@ -15,7 +15,9 @@ pub mod pb {
 pub mod api;
 pub mod decide;
 pub mod decision;
+pub mod degrade;
 
 pub use api::DecisionEngine;
 pub use decide::{ApproveAllDecider, Decider};
 pub use decision::RulesDecider;
+pub use degrade::FeatureAwareDecider;

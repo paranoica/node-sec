@@ -11,7 +11,9 @@ workspace = true
 [dependencies]
 domain = { path = "../domain" }
 rules = { path = "../rules" }
-tokio = { workspace = true }
+features = { path = "../features" }
+stream = { path = "../stream" }
+tokio = { workspace = true, features = ["time"] }
 tonic = { workspace = true }
 prost = { workspace = true }
 time = { workspace = true }
