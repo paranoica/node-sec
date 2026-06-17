@@ -34,10 +34,13 @@ def _fraud_proba(outputs: list) -> np.ndarray:
     raise ValueError("no [N, 2] probability tensor in ONNX outputs")
 
 
-def export(seed: int = 1) -> dict:
+def export(
+    seed: int = 1, onnx_path: Path = ONNX_PATH, fixture_path: Path = FIXTURE_PATH
+) -> dict:
     """Train, convert to ONNX, verify parity in Python, and write the artifacts.
 
-    Returns the fixture dict that was written.
+    Tests pass temporary paths so they never overwrite the committed artifacts (the ONNX bytes are
+    not reproducible byte-for-byte). Returns the fixture dict that was written.
     """
     x, y = make_dataset(n=20_000, fraud_rate=0.01, seed=seed)
     positives = max(int(y.sum()), 1)
@@ -58,11 +61,10 @@ def export(seed: int = 1) -> dict:
         initial_types=[("input", FloatTensorType([None, n_features]))],
         zipmap=False,
     )
-    ARTIFACTS.mkdir(exist_ok=True)
-    ONNX_PATH.write_bytes(onnx_model.SerializeToString())
+    onnx_bytes = onnx_model.SerializeToString()
 
     # Verify the ONNX graph reproduces LightGBM in-process, then keep the ONNX scores as the golden.
-    session = ort.InferenceSession(ONNX_PATH.read_bytes(), providers=["CPUExecutionProvider"])
+    session = ort.InferenceSession(onnx_bytes, providers=["CPUExecutionProvider"])
     sample = x[:32].astype(np.float32)
     onnx_scores = _fraud_proba(session.run(None, {"input": sample}))
     lgb_scores = model.predict_proba(sample.astype(np.float64))[:, 1]
@@ -77,7 +79,9 @@ def export(seed: int = 1) -> dict:
         "tolerance": TOLERANCE,
         "onnx_vs_lgbm_max_diff": max_diff,
     }
-    FIXTURE_PATH.write_text(json.dumps(fixture, indent=2))
+    onnx_path.parent.mkdir(parents=True, exist_ok=True)
+    onnx_path.write_bytes(onnx_bytes)
+    fixture_path.write_text(json.dumps(fixture, indent=2))
     return fixture
 
 
