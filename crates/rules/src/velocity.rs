@@ -2,10 +2,10 @@
 //!
 //! Each counter map is a [`DashMap`] sharded **by key**, so disjoint entities (different
 //! device/BIN/card) update concurrently rather than serialising on one global lock — the velocity
-//! stage scales with cores instead of being a single-lock bottleneck on the hot path. State is still
-//! **per-entity unbounded** (a previously unseen key adds an entry that is never removed; each
-//! entry's time window self-evicts, but the key set only grows) — S2 (T020–T022) replaces this with
-//! the streamed online feature store.
+//! stage scales with cores instead of being a single-lock bottleneck on the hot path. Each map is
+//! **bounded** ([`MAX_ENTITIES`]) with arbitrary eviction, so a high-cardinality flood degrades
+//! gracefully instead of exhausting memory. S2 (T020–T022) replaces this with the streamed online
+//! feature store (recency/TTL eviction).
 
 use std::collections::{HashSet, VecDeque};
 
