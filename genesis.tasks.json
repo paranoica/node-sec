@@ -552,7 +552,7 @@
       "id": "T032",
       "title": "Score fusion + expected-value action selection",
       "sprint": "S3-ml-scoring",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T031",
         "T014"

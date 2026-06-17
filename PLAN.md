@@ -82,7 +82,7 @@
     - _accept:_ WHEN a trained model is exported to ONNX THEN the engine SHALL load it and score a feature vector in-process with no network call
     - _accept:_ WHEN the same feature vector is scored in Python and in the Rust engine THEN the scores SHALL match within tolerance
     - _verify (test):_ cargo test -p model inference_parity
-- [ ] **T032** Score fusion + expected-value action selection ← T031, T014
+- [x] **T032** Score fusion + expected-value action selection ← T031, T014
     - _accept:_ WHEN rule signals and the calibrated model score are fused THEN the action SHALL be selected by expected value over the configured cost matrix
     - _accept:_ WHEN a hard rule override is present THEN it SHALL win regardless of the model score
     - _verify (test):_ cargo test -p engine fusion_ev
