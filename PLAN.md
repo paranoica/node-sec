@@ -126,7 +126,7 @@
     - _accept:_ WHEN an entity name matches a watchlist by fuzzy/phonetic score above threshold AND a secondary identifier (DOB/nationality/ID) corroborates THEN a screening alert SHALL be raised
     - _accept:_ WHEN a watchlist delta is ingested THEN the existing customer base SHALL be rescreened in batch and new true matches SHALL alert
     - _verify (test):_ cargo test -p compliance screening
-- [ ] **T051** AML monitoring rules (typology-tagged R1–R14) ← T020
+- [x] **T051** AML monitoring rules (typology-tagged R1–R14) ← T020
     - _accept:_ WHEN sub-threshold deposits cluster just below the CTR threshold within a window THEN a structuring alert tagged with its typology SHALL be raised
     - _accept:_ WHEN credits arrive from many geographies and debits concentrate to few destinations THEN a funnel-account alert SHALL be raised
     - _accept:_ WHEN an outbound transfer is matched by an inbound of near-equal size within the round-trip window THEN a round-tripping alert SHALL be raised

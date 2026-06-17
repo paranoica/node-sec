@@ -867,7 +867,7 @@
       "id": "T051",
       "title": "AML monitoring rules (typology-tagged R1–R14)",
       "sprint": "S5-compliance",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T020"
       ],
