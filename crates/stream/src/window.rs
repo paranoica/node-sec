@@ -25,9 +25,11 @@ pub struct WindowStat {
     pub count: u64,
     /// Summed amount (minor units) in the window.
     pub sum_minor: i64,
-    /// Summed squared amount (minor units) — feeds variance / z-score.
+    /// Summed squared amount (minor units) — feeds variance / z-score. `i128` because a squared
+    /// i64 amount overflows i64, and the running sum over a window would silently saturate and
+    /// corrupt every variance/z-score that feeds the rules and the model.
     #[serde(default)]
-    pub sum_sq: i64,
+    pub sum_sq: i128,
 }
 
 impl WindowStat {
@@ -110,9 +112,10 @@ impl EntityWindows {
                 if age <= *secs {
                     windows[i].count += 1;
                     windows[i].sum_minor = windows[i].sum_minor.saturating_add(amount);
-                    windows[i].sum_sq = windows[i]
-                        .sum_sq
-                        .saturating_add(amount.saturating_mul(amount));
+                    // i128: a squared i64 amount cannot overflow i128, so the variance input stays
+                    // exact for any realistic volume instead of saturating to garbage.
+                    let sq = i128::from(amount) * i128::from(amount);
+                    windows[i].sum_sq = windows[i].sum_sq.saturating_add(sq);
                 }
             }
         }
@@ -125,6 +128,24 @@ mod tests {
     use super::*;
     use time::macros::datetime;
     use time::Duration as TDuration;
+
+    #[test]
+    fn sum_sq_does_not_overflow_on_large_amounts() {
+        // $50M in cents: amount^2 = 2.5e19 overflows i64 (max ~9.2e18). With i128 the squared sum
+        // stays exact instead of saturating to garbage (which would corrupt the variance/z-score).
+        let now = datetime!(2026-06-17 12:00 UTC);
+        let amount: i64 = 5_000_000_000;
+        let mut w = EntityWindows::default();
+        w.record(now - TDuration::seconds(10), amount);
+        w.record(now - TDuration::seconds(20), amount);
+        let agg = w.aggregates(now);
+        let expected = 2 * i128::from(amount) * i128::from(amount);
+        assert_eq!(agg.get("5m").unwrap().sum_sq, expected);
+        assert!(
+            expected > i128::from(i64::MAX),
+            "test must exceed i64 range"
+        );
+    }
 
     #[test]
     fn windows_count_only_events_inside_each_window() {

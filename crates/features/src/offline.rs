@@ -61,7 +61,7 @@ mod tests {
             );
             assert_eq!(
                 stat.sum_sq,
-                exp["sum_sq"].as_i64().unwrap(),
+                i128::from(exp["sum_sq"].as_i64().unwrap()),
                 "sum_sq {label}"
             );
         }

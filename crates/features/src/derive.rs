@@ -88,7 +88,7 @@ mod tests {
         )
     }
 
-    fn aggregates_30d(count: u64, sum_minor: i64, sum_sq: i64) -> WindowAggregates {
+    fn aggregates_30d(count: u64, sum_minor: i64, sum_sq: i128) -> WindowAggregates {
         WindowAggregates {
             windows: vec![WindowStat {
                 label: "30d".to_string(),
