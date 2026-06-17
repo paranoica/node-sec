@@ -939,7 +939,7 @@
       "id": "T053",
       "title": "SAR/STR generation (deadlines, continuing-activity, CTR, tipping-off)",
       "sprint": "S5-compliance",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T052"
       ],

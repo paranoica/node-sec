@@ -135,7 +135,7 @@
     - _accept:_ WHEN an alert is created THEN it SHALL enter the case lifecycle (alert → triage → investigate → close/escalate/file-sar) with risk-prioritised ordering in the review queue
     - _accept:_ WHEN a SAR is approved or filed THEN the checker SHALL be a different analyst from the maker
     - _verify (test):_ cargo test -p compliance cases
-- [ ] **T053** SAR/STR generation (deadlines, continuing-activity, CTR, tipping-off) ← T052
+- [x] **T053** SAR/STR generation (deadlines, continuing-activity, CTR, tipping-off) ← T052
     - _accept:_ WHEN a case is dispositioned to file THEN a SAR SHALL be generated with a filing deadline and a continuing-activity follow-up SHALL be scheduled, and the subject SHALL NOT be notified
     - _accept:_ WHEN cash movement exceeds the CTR threshold THEN a CTR SHALL be produced independently of any suspicion finding
     - _verify (test):_ cargo test -p compliance sar
