@@ -258,7 +258,7 @@
       "id": "T014",
       "title": "Decisioning v0: risk bands → action + reason codes (rules-only)",
       "sprint": "S1-card-slice",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T012",
         "T013"

@@ -41,7 +41,7 @@
     - _accept:_ WHEN the transaction amount z-score against the card baseline exceeds threshold T THEN an amount-anomaly signal SHALL be emitted
     - _accept:_ WHEN the merchant MCC is in the high-risk set OR the AVS/CVV check mismatches THEN the corresponding soft signal SHALL be emitted
     - _verify (test):_ cargo test -p rules card_context
-- [ ] **T014** Decisioning v0: risk bands → action + reason codes (rules-only) ← T012, T013
+- [x] **T014** Decisioning v0: risk bands → action + reason codes (rules-only) ← T012, T013
     - _accept:_ WHEN rule signals are aggregated into a risk band THEN the engine SHALL select exactly one action from {approve, decline, step-up, review, hold}
     - _accept:_ WHEN a decision is produced THEN it SHALL attach the reason codes of the dominant contributing rules
     - _verify (test):_ cargo test -p engine decision_bands
