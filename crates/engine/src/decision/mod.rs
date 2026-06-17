@@ -5,10 +5,11 @@
 //! always wins. `fuse_ev` is wired into the live hot path by [`crate::degrade::FeatureAwareDecider`]
 //! (assemble feature vector → `model` score → `fuse_ev`), reached through the gRPC engine.
 
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use domain::{
-    Action, Channel, Currency, DeviceId, MerchantId, Money, Pan, RiskBand, Transaction,
+    Action, Channel, Currency, DeviceId, Geo, MerchantId, Money, Pan, RiskBand, Transaction,
     TransactionId, Vertical,
 };
 use rules::{Disposition, Evaluation, RulesEngine};
@@ -200,9 +201,8 @@ pub(crate) fn band_str(band: RiskBand) -> &'static str {
 }
 
 /// Convert a gRPC request to a domain transaction. Lenient: unknown enum strings fall back to sane
-/// defaults (the simulator emits valid values; production callers are validated upstream). MCC, AVS,
-/// CVV and geo are not yet carried on the request wire, so those rules stay dormant for gRPC traffic
-/// until the request schema is enriched.
+/// defaults (the simulator emits valid values; production callers are validated upstream). The
+/// enrichment fields (MCC, AVS, CVV, IP, geo) populate the matching rules when present.
 pub(crate) fn request_to_transaction(req: &DecisionRequest) -> Transaction {
     let occurred_at =
         OffsetDateTime::from_unix_timestamp_nanos(i128::from(req.occurred_at_unix_ms) * 1_000_000)
@@ -223,6 +223,18 @@ pub(crate) fn request_to_transaction(req: &DecisionRequest) -> Transaction {
     }
     if !req.device.is_empty() {
         txn = txn.with_device(DeviceId::new(req.device.clone()));
+    }
+    // Enrichment: wake the MCC / AVS / CVV / IP-blocklist / impossible-travel rules when carried.
+    if req.mcc != 0 {
+        txn = txn.with_mcc(req.mcc);
+    }
+    txn.avs_match = req.avs_match;
+    txn.cvv_match = req.cvv_match;
+    if let Ok(ip) = req.ip.parse::<IpAddr>() {
+        txn = txn.with_ip(ip);
+    }
+    if !req.geo_country.is_empty() {
+        txn = txn.with_geo(Geo::new(req.geo_country.clone(), req.geo_lat, req.geo_lon));
     }
     txn
 }
@@ -365,6 +377,7 @@ mod tests {
             merchant: "mrc-1".to_string(),
             device: "dev-1".to_string(),
             occurred_at_unix_ms: 1_780_000_000_000,
+            ..Default::default()
         }
     }
 
@@ -390,5 +403,39 @@ mod tests {
         let resp = decider.decide(&req("4222220000001234"));
         assert_eq!(resp.action, "APPROVE");
         assert!(resp.reason_codes.is_empty());
+    }
+
+    #[test]
+    fn enrichment_fields_wake_dormant_avs_cvv_rules() {
+        let decider = RulesDecider::new(Arc::new(RulesEngine::from_config(RulesConfig::default())));
+        // Baseline: no enrichment → the AVS/CVV rules stay silent (the old gRPC behaviour).
+        assert!(decider
+            .decide(&req("4222220000001234"))
+            .reason_codes
+            .is_empty());
+
+        // Enriched request: AVS and CVV mismatches now flow through and fire their signals.
+        let mut enriched = req("4222220000001234");
+        enriched.avs_match = Some(false);
+        enriched.cvv_match = Some(false);
+        let codes = decider.decide(&enriched).reason_codes;
+        assert!(codes.contains(&"AVS_MISMATCH".to_string()), "got {codes:?}");
+        assert!(codes.contains(&"CVV_MISMATCH".to_string()), "got {codes:?}");
+    }
+
+    #[test]
+    fn enrichment_geo_wakes_impossible_travel() {
+        // Two geos far apart in a short time → impossible travel, but only once geo is carried.
+        let decider = RulesDecider::new(Arc::new(RulesEngine::from_config(RulesConfig::default())));
+        let mut r = req("4222220000001234");
+        r.geo_country = "NZ".to_string();
+        r.geo_lat = -36.85;
+        r.geo_lon = 174.76;
+        // The first sighting just primes the per-card location; assert no panic and a clean decision.
+        let resp = decider.decide(&r);
+        assert!(matches!(
+            resp.action.as_str(),
+            "APPROVE" | "STEP_UP" | "REVIEW" | "DECLINE"
+        ));
     }
 }

@@ -20,6 +20,15 @@ message DecisionRequest {
   string merchant = 8;            // optional
   string device = 9;              // optional
   int64 occurred_at_unix_ms = 10; // event time (epoch milliseconds)
+  // Enrichment (optional) — wakes the MCC / AVS / CVV / impossible-travel / IP-blocklist rules and
+  // feeds the model's high_risk_mcc feature. Absent/zero = not provided.
+  uint32 mcc = 11;                // Merchant Category Code (0 = unknown)
+  optional bool avs_match = 12;   // AVS result (absent = not checked)
+  optional bool cvv_match = 13;   // CVV result (absent = not checked)
+  string ip = 14;                 // source IP (empty = unknown)
+  string geo_country = 15;        // ISO 3166-1 alpha-2 (empty = no geo)
+  double geo_lat = 16;
+  double geo_lon = 17;
 }
 
 message DecisionResponse {

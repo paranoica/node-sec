@@ -64,6 +64,7 @@ fn make_request(i: usize) -> DecisionRequest {
         merchant: format!("mrc-{}", i % 200),
         device: format!("dev-{}", i % 500),
         occurred_at_unix_ms: 1_780_000_000_000 + i as i64,
+        ..Default::default()
     }
 }
 

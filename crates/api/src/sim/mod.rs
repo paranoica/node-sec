@@ -151,6 +151,7 @@ fn request(
         merchant: format!("mrc-{}", i % 50),
         device: device.to_string(),
         occurred_at_unix_ms: 1_780_000_000_000 + (i as i64) * 1_000,
+        ..Default::default()
     }
 }
 

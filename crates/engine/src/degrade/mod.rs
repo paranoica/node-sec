@@ -169,6 +169,7 @@ mod tests {
             merchant: "mrc-1".to_string(),
             device: "dev-1".to_string(),
             occurred_at_unix_ms: 1_780_000_000_000,
+            ..Default::default()
         }
     }
 
