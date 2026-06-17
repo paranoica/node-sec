@@ -7,7 +7,7 @@
     - _accept:_ WHEN `cargo build --workspace` is run THEN every crate (domain, engine, ingest, stream, features, rules, model, graph, compliance, simulator) SHALL compile
     - _accept:_ WHERE a crate is vertical-specific THEN it SHALL live under a verticals/ pack and the core crates SHALL NOT depend on it
     - _verify (test):_ cargo build --workspace
-- [ ] **T002** Domain types crate (money as integer minor units) ← T001
+- [x] **T002** Domain types crate (money as integer minor units) ← T001
     - _accept:_ WHEN a monetary amount is constructed THEN it SHALL be an integer minor-unit value with an explicit currency and SHALL reject floating-point construction
     - _accept:_ WHEN a transaction is built THEN it SHALL carry amount+currency, timestamp, and references to the entities involved (card/account/device/ip/merchant/counterparty)
     - _verify (test):_ cargo test -p domain

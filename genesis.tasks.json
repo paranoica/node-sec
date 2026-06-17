@@ -32,7 +32,7 @@
       "id": "T002",
       "title": "Domain types crate (money as integer minor units)",
       "sprint": "S0-foundation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T001"
       ],
