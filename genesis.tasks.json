@@ -408,7 +408,7 @@
       "id": "T022",
       "title": "Feature taxonomy + request-time deviation derivation",
       "sprint": "S2-feature-store",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T021"
       ],

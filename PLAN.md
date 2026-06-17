@@ -62,7 +62,7 @@
     - _accept:_ WHEN the hot path requests features for an entity THEN it SHALL read precomputed aggregates from the online store within the per-call timeout
     - _accept:_ WHEN an event updates an aggregate THEN the online store SHALL reflect it within the configured freshness bound
     - _verify (test):_ cargo test -p features online
-- [ ] **T022** Feature taxonomy + request-time deviation derivation ← T021
+- [x] **T022** Feature taxonomy + request-time deviation derivation ← T021
     - _accept:_ WHEN a decision is made THEN request-time deviation features (amount ÷ rolling mean, geo distance from usual, z-score) SHALL be derived from looked-up state without a store write
     - _verify (test):_ cargo test -p features derive
 - [ ] **T023** Offline feature store + point-in-time joins + parity check ← T020
