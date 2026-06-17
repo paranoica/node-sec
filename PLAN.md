@@ -11,7 +11,7 @@
     - _accept:_ WHEN a monetary amount is constructed THEN it SHALL be an integer minor-unit value with an explicit currency and SHALL reject floating-point construction
     - _accept:_ WHEN a transaction is built THEN it SHALL carry amount+currency, timestamp, and references to the entities involved (card/account/device/ip/merchant/counterparty)
     - _verify (test):_ cargo test -p domain
-- [ ] **T003** Infra: docker-compose (Redpanda, Redis, Postgres, Prometheus, Grafana)
+- [x] **T003** Infra: docker-compose (Redpanda, Redis, Postgres, Prometheus, Grafana)
     - _accept:_ WHEN `docker compose up` is run THEN Redpanda, Redis, Postgres, Prometheus, and Grafana SHALL each become reachable on their documented ports and pass a healthcheck
     - _verify (manual):_ docker compose up -d && scripts/healthcheck.sh
 - [ ] **T004** Synthetic transaction generator v0 (legit baseline → backbone) ← T002, T003

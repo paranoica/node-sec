@@ -57,7 +57,7 @@
       "id": "T003",
       "title": "Infra: docker-compose (Redpanda, Redis, Postgres, Prometheus, Grafana)",
       "sprint": "S0-foundation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [],
       "spec_refs": {
         "decision:event-backbone": "8e00b03f69db09f2",
