@@ -3,7 +3,11 @@ name = "nodesec-ml"
 version = "0.1.0"
 description = "node-sec ML: model training, evaluation, and batch graph analytics."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=2.0",
+    "scikit-learn>=1.5",
+    "lightgbm>=4.5",
+]
 
 [dependency-groups]
 dev = [
