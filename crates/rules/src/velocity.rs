@@ -1,37 +1,35 @@
 //! In-process velocity tracking for the S1 card slice (card-testing, BIN-attack, decline-retry).
 //!
-//! State is in-memory and **per-entity unbounded** — a previously unseen device/BIN/card adds a map
-//! entry that is never removed (each entry's time window self-evicts, but the key set only grows).
-//! This is the S1 stand-in; S2 (T020–T022) replaces it with the streamed online feature store, at
-//! which point the rules read precomputed features instead of tracking state here.
+//! Each counter map is a [`DashMap`] sharded **by key**, so disjoint entities (different
+//! device/BIN/card) update concurrently rather than serialising on one global lock — the velocity
+//! stage scales with cores instead of being a single-lock bottleneck on the hot path. State is still
+//! **per-entity unbounded** (a previously unseen key adds an entry that is never removed; each
+//! entry's time window self-evicts, but the key set only grows) — S2 (T020–T022) replaces this with
+//! the streamed online feature store.
 
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::Mutex;
+use std::collections::{HashSet, VecDeque};
 
+use dashmap::DashMap;
 use domain::{Geo, ReasonCode, Transaction};
 use time::{Duration, OffsetDateTime};
 
 use crate::config::{AmountAnomaly, ImpossibleTravel, VelocityConfig};
 use crate::engine::{Disposition, RuleHit};
 
-/// Per-entity sliding-window counters feeding the velocity rules.
+/// Per-entity sliding-window counters feeding the velocity rules. Each map shards by its own key, so
+/// there is no single lock across the hot path — only same-key (or same-shard) updates contend.
 #[derive(Debug, Default)]
 pub struct VelocityTracker {
-    state: Mutex<Windows>,
-}
-
-#[derive(Debug, Default)]
-struct Windows {
     /// device → timestamps of low-value auths (card testing).
-    device_low_value: HashMap<String, VecDeque<OffsetDateTime>>,
+    device_low_value: DashMap<String, VecDeque<OffsetDateTime>>,
     /// BIN → (timestamp, card token) pairs (BIN enumeration).
-    bin_pans: HashMap<String, VecDeque<(OffsetDateTime, String)>>,
+    bin_pans: DashMap<String, VecDeque<(OffsetDateTime, String)>>,
     /// card token → timestamps of declines (retry storm).
-    card_declines: HashMap<String, VecDeque<OffsetDateTime>>,
+    card_declines: DashMap<String, VecDeque<OffsetDateTime>>,
     /// card token → last seen (geo, time) for impossible travel.
-    card_last_location: HashMap<String, (Geo, OffsetDateTime)>,
+    card_last_location: DashMap<String, (Geo, OffsetDateTime)>,
     /// card token → (sample count, running mean minor-unit amount) for amount anomaly.
-    card_amount_stats: HashMap<String, (u64, f64)>,
+    card_amount_stats: DashMap<String, (u64, f64)>,
 }
 
 fn evict_ts(dq: &mut VecDeque<OffsetDateTime>, now: OffsetDateTime, window_secs: i64) {
@@ -66,19 +64,16 @@ impl VelocityTracker {
         amount: &AmountAnomaly,
     ) -> Vec<RuleHit> {
         let now = txn.occurred_at;
-        // Recover a poisoned lock (data is intact; poisoning only flags a prior panic) so one
-        // panicked request can never wedge the velocity stage for every subsequent decision.
-        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let mut hits = Vec::new();
 
         if let Some(device) = &txn.device {
             if txn.amount.minor_units() <= cfg.card_testing.low_value_threshold_minor {
-                let dq = state
+                let mut dq = self
                     .device_low_value
                     .entry(device.as_str().to_string())
                     .or_default();
                 dq.push_back(now);
-                evict_ts(dq, now, cfg.card_testing.window_secs);
+                evict_ts(dq.value_mut(), now, cfg.card_testing.window_secs);
                 if dq.len() as u64 > cfg.card_testing.max_low_value_auths {
                     hits.push(hit(
                         "velocity.card_testing",
@@ -91,9 +86,9 @@ impl VelocityTracker {
 
         if let Some(pan) = &txn.pan {
             if let Some(bin) = pan.bin() {
-                let dq = state.bin_pans.entry(bin.as_str().to_string()).or_default();
+                let mut dq = self.bin_pans.entry(bin.as_str().to_string()).or_default();
                 dq.push_back((now, pan.redacted()));
-                evict_pairs(dq, now, cfg.bin_attack.window_secs);
+                evict_pairs(dq.value_mut(), now, cfg.bin_attack.window_secs);
                 let distinct = dq
                     .iter()
                     .map(|(_, p)| p.as_str())
@@ -110,8 +105,8 @@ impl VelocityTracker {
         }
 
         if let Some(pan) = &txn.pan {
-            if let Some(dq) = state.card_declines.get_mut(&pan.redacted()) {
-                evict_ts(dq, now, cfg.decline_retry.window_secs);
+            if let Some(mut dq) = self.card_declines.get_mut(&pan.redacted()) {
+                evict_ts(dq.value_mut(), now, cfg.decline_retry.window_secs);
                 if dq.len() as u64 > cfg.decline_retry.max_declines {
                     hits.push(hit(
                         "velocity.decline_retry",
@@ -125,8 +120,14 @@ impl VelocityTracker {
         // Impossible travel: implied speed since the card's last known location.
         if let (Some(pan), Some(geo)) = (&txn.pan, &txn.geo) {
             let token = pan.redacted();
-            if let Some((last_geo, last_time)) = state.card_last_location.get(&token) {
-                let hours = (now - *last_time).as_seconds_f64() / 3600.0;
+            // Clone the prior location out and drop the read guard before the insert below, so the
+            // same key's shard is not locked twice (which would self-deadlock).
+            let prior = self
+                .card_last_location
+                .get(&token)
+                .map(|r| r.value().clone());
+            if let Some((last_geo, last_time)) = prior {
+                let hours = (now - last_time).as_seconds_f64() / 3600.0;
                 if hours > 0.0 && last_geo.distance_km(geo) / hours > travel.max_speed_kmh {
                     hits.push(hit(
                         "rule.impossible_travel",
@@ -135,14 +136,14 @@ impl VelocityTracker {
                     ));
                 }
             }
-            state.card_last_location.insert(token, (geo.clone(), now));
+            self.card_last_location.insert(token, (geo.clone(), now));
         }
 
         // Amount anomaly: amount far above the card's running mean ticket size.
         if let Some(pan) = &txn.pan {
             let token = pan.redacted();
             let value = txn.amount.minor_units() as f64;
-            let entry = state.card_amount_stats.entry(token).or_insert((0, 0.0));
+            let mut entry = self.card_amount_stats.entry(token).or_insert((0, 0.0));
             let (count, mean) = *entry;
             if count >= amount.min_samples && value > mean * amount.factor {
                 hits.push(soft(
@@ -152,7 +153,7 @@ impl VelocityTracker {
                 ));
             }
             let new_count = count + 1;
-            *entry = (new_count, mean + (value - mean) / new_count as f64);
+            *entry.value_mut() = (new_count, mean + (value - mean) / new_count as f64);
         }
 
         hits
@@ -162,12 +163,9 @@ impl VelocityTracker {
     pub fn record_decline(&self, txn: &Transaction, cfg: &VelocityConfig) {
         let Some(pan) = &txn.pan else { return };
         let now = txn.occurred_at;
-        // Recover a poisoned lock (data is intact; poisoning only flags a prior panic) so one
-        // panicked request can never wedge the velocity stage for every subsequent decision.
-        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        let dq = state.card_declines.entry(pan.redacted()).or_default();
+        let mut dq = self.card_declines.entry(pan.redacted()).or_default();
         dq.push_back(now);
-        evict_ts(dq, now, cfg.decline_retry.window_secs);
+        evict_ts(dq.value_mut(), now, cfg.decline_retry.window_secs);
     }
 }
 
@@ -215,6 +213,38 @@ mod tests {
             &ImpossibleTravel::default(),
             &AmountAnomaly::default(),
         )
+    }
+
+    #[test]
+    fn velocity_tracker_handles_concurrent_disjoint_entities() {
+        // The sharded maps must let different cards update concurrently without deadlocking or
+        // corrupting state (this would hang or panic under a re-entrant single-shard lock).
+        let tracker = VelocityTracker::new();
+        let base = datetime!(2026-06-17 12:00 UTC);
+        std::thread::scope(|s| {
+            for card in 0..8 {
+                let tracker = &tracker;
+                s.spawn(move || {
+                    for i in 0..200 {
+                        let txn = card_txn(
+                            &format!("411111000000{card:04}"),
+                            &format!("dev-{card}"),
+                            base + TDuration::seconds(i),
+                            100,
+                        )
+                        .with_geo(Geo::new(
+                            "US",
+                            40.0 + f64::from(card),
+                            -70.0,
+                        ));
+                        let _ = obs(tracker, &txn);
+                    }
+                });
+            }
+        });
+        // Completing without a hang/panic is the assertion; the state is also intact and queryable.
+        let txn = card_txn("4111110000000000", "dev-0", base, 100);
+        let _ = obs(&tracker, &txn);
     }
 
     fn fired(hits: &[RuleHit], reason: &str) -> bool {
