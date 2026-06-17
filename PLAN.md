@@ -36,7 +36,7 @@
     - _accept:_ WHEN many distinct PANs sharing one BIN are tested within window W THEN a BIN-attack rule SHALL fire
     - _accept:_ WHEN a burst of low- or zero-value authorisations originates from one device/IP THEN a card-testing rule SHALL fire
     - _verify (test):_ cargo test -p rules card_velocity
-- [ ] **T013** Card rules: impossible-travel, amount-anomaly, MCC, AVS/CVV ← T011
+- [x] **T013** Card rules: impossible-travel, amount-anomaly, MCC, AVS/CVV ← T011
     - _accept:_ WHEN two transactions for one card occur in geographies unreachable within the elapsed time THEN an impossible-travel rule SHALL fire
     - _accept:_ WHEN the transaction amount z-score against the card baseline exceeds threshold T THEN an amount-anomaly signal SHALL be emitted
     - _accept:_ WHEN the merchant MCC is in the high-risk set OR the AVS/CVV check mismatches THEN the corresponding soft signal SHALL be emitted

@@ -231,7 +231,7 @@
       "id": "T013",
       "title": "Card rules: impossible-travel, amount-anomaly, MCC, AVS/CVV",
       "sprint": "S1-card-slice",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T011"
       ],
