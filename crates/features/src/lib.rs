@@ -5,6 +5,8 @@
 //! follow. The aggregate types and the store backends live in `stream` (which writes them).
 #![forbid(unsafe_code)]
 
+pub mod derive;
 pub mod online;
 
+pub use derive::{derive, RequestFeatures};
 pub use online::{OnlineFeatures, ReadResult};

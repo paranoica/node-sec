@@ -92,6 +92,7 @@ mod tests {
                 label: "5m".to_string(),
                 count: 3,
                 sum_minor: 600,
+                sum_sq: 120_000,
             }],
         }
     }

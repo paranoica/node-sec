@@ -16,7 +16,7 @@ pub const WINDOWS: [(&str, i64); 6] = [
     ("30d", 2_592_000),
 ];
 
-/// Count and summed minor-unit amount over one window.
+/// Count, summed amount, and summed squared amount over one window.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WindowStat {
     /// Window label (e.g. `5m`).
@@ -25,6 +25,33 @@ pub struct WindowStat {
     pub count: u64,
     /// Summed amount (minor units) in the window.
     pub sum_minor: i64,
+    /// Summed squared amount (minor units) — feeds variance / z-score.
+    #[serde(default)]
+    pub sum_sq: i64,
+}
+
+impl WindowStat {
+    /// Mean amount in the window (0 if empty).
+    #[must_use]
+    pub fn mean(&self) -> f64 {
+        if self.count == 0 {
+            0.0
+        } else {
+            self.sum_minor as f64 / self.count as f64
+        }
+    }
+
+    /// Population standard deviation of amounts in the window (0 with fewer than 2 samples).
+    #[must_use]
+    pub fn std_dev(&self) -> f64 {
+        if self.count < 2 {
+            return 0.0;
+        }
+        let n = self.count as f64;
+        let mean = self.sum_minor as f64 / n;
+        let variance = (self.sum_sq as f64 / n) - mean * mean;
+        variance.max(0.0).sqrt()
+    }
 }
 
 /// Aggregates across every window for one entity.
@@ -70,6 +97,7 @@ impl EntityWindows {
                 label: (*label).to_string(),
                 count: 0,
                 sum_minor: 0,
+                sum_sq: 0,
             })
             .collect();
 
@@ -81,7 +109,10 @@ impl EntityWindows {
             for (i, (_, secs)) in WINDOWS.iter().enumerate() {
                 if age <= *secs {
                     windows[i].count += 1;
-                    windows[i].sum_minor += amount;
+                    windows[i].sum_minor = windows[i].sum_minor.saturating_add(amount);
+                    windows[i].sum_sq = windows[i]
+                        .sum_sq
+                        .saturating_add(amount.saturating_mul(amount));
                 }
             }
         }

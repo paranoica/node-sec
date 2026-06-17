@@ -9,5 +9,9 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+domain = { path = "../domain" }
 stream = { path = "../stream" }
 tokio = { workspace = true, features = ["time"] }
+
+[dev-dependencies]
+time = { workspace = true }
