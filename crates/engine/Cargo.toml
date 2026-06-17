@@ -18,3 +18,7 @@ time = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.12"
+
+[[bench]]
+name = "latency"
+harness = false
