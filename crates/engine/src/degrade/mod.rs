@@ -126,6 +126,18 @@ where
     }
 }
 
+#[tonic::async_trait]
+impl<S> crate::decide::AsyncDecider for FeatureAwareDecider<S>
+where
+    S: FeatureStore + Send + Sync + 'static,
+{
+    async fn decide(&self, req: &DecisionRequest) -> DecisionResponse {
+        // The gRPC engine only needs the verdict; the degraded flag is for metrics/audit on the
+        // direct path. Call the inherent method explicitly to avoid shadowing by this trait method.
+        FeatureAwareDecider::decide(self, req).await.0
+    }
+}
+
 /// The online-store key for the request's card (mirrors `stream::entity_keys`).
 fn card_entity_key(req: &DecisionRequest) -> Option<String> {
     if req.pan.is_empty() {

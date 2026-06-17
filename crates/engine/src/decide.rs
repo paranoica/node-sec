@@ -16,6 +16,22 @@ pub trait Decider: Send + Sync {
     fn decide(&self, req: &DecisionRequest) -> DecisionResponse;
 }
 
+/// The async decision seam the gRPC engine drives — the model-backed path reads online features
+/// asynchronously, so the live decider is async. Sync deciders adapt trivially (see the
+/// [`ApproveAllDecider`] impl).
+#[tonic::async_trait]
+pub trait AsyncDecider: Send + Sync {
+    /// Compute a verdict for `req`.
+    async fn decide(&self, req: &DecisionRequest) -> DecisionResponse;
+}
+
+#[tonic::async_trait]
+impl AsyncDecider for ApproveAllDecider {
+    async fn decide(&self, req: &DecisionRequest) -> DecisionResponse {
+        Decider::decide(self, req)
+    }
+}
+
 /// A placeholder decider that approves every transaction. Counts invocations.
 #[derive(Debug, Default)]
 pub struct ApproveAllDecider {

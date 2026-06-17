@@ -8,28 +8,29 @@ use std::sync::{Arc, Mutex};
 
 use tonic::{Request, Response, Status};
 
-use crate::decide::Decider;
+use crate::decide::AsyncDecider;
 use crate::pb::decision_service_server::{DecisionService, DecisionServiceServer};
 use crate::pb::{DecisionRequest, DecisionResponse};
 
-/// The decision engine: a [`Decider`] behind an idempotency cache so a retried request returns the
-/// original verdict and never re-decides or double-updates state (`arch:idempotent-decision`).
+/// The decision engine: an [`AsyncDecider`] (the model-backed hot path) behind an idempotency cache
+/// so a retried request returns the original verdict and never re-decides or double-updates state
+/// (`arch:idempotent-decision`).
 ///
-/// # Limitation (T010 skeleton)
+/// # Limitation
 /// `cache` is an **unbounded** in-process map: it never evicts, so it grows without limit and is an
 /// out-of-memory vector under sustained load. This is deliberately deferred — the production
 /// idempotency store must be **bounded with a TTL** matched to the client retry window (and is the
 /// natural home for the Redis online store from D-006/T021). Do not put this path under sustained
-/// load (T016 latency harness, T065 load test) until that store replaces this map.
+/// unique-key load until that store replaces this map.
 pub struct DecisionEngine {
-    decider: Arc<dyn Decider>,
+    decider: Arc<dyn AsyncDecider>,
     cache: Mutex<HashMap<String, DecisionResponse>>,
 }
 
 impl DecisionEngine {
-    /// Build an engine around a decider.
+    /// Build an engine around an async decider (e.g. the model-backed `FeatureAwareDecider`).
     #[must_use]
-    pub fn new(decider: Arc<dyn Decider>) -> Self {
+    pub fn new(decider: Arc<dyn AsyncDecider>) -> Self {
         Self {
             decider,
             cache: Mutex::new(HashMap::new()),
@@ -42,12 +43,16 @@ impl DecisionEngine {
     /// # Errors
     /// Returns `InvalidArgument` if `idempotency_key` is empty — a decision request must be
     /// idempotent.
-    pub fn decide_idempotent(&self, req: &DecisionRequest) -> Result<DecisionResponse, Status> {
+    pub async fn decide_idempotent(
+        &self,
+        req: &DecisionRequest,
+    ) -> Result<DecisionResponse, Status> {
         if req.idempotency_key.is_empty() {
             return Err(Status::invalid_argument("idempotency_key is required"));
         }
 
         // Fast path: a previously decided key returns its original verdict — no re-decide, no write.
+        // The guard is dropped before the await below, so no lock is held across it.
         if let Some(existing) = self
             .cache
             .lock()
@@ -57,7 +62,7 @@ impl DecisionEngine {
             return Ok(existing.clone());
         }
 
-        let fresh = self.decider.decide(req);
+        let fresh = self.decider.decide(req).await;
         let mut cache = self.cache.lock().expect("idempotency cache poisoned");
         // A concurrent request with the same key may have inserted first; keep the first verdict so
         // one key maps to exactly one decision.
@@ -81,7 +86,7 @@ impl DecisionService for DecisionEngine {
         &self,
         request: Request<DecisionRequest>,
     ) -> Result<Response<DecisionResponse>, Status> {
-        let verdict = self.decide_idempotent(request.get_ref())?;
+        let verdict = self.decide_idempotent(request.get_ref()).await?;
         Ok(Response::new(verdict))
     }
 }
@@ -106,20 +111,20 @@ mod tests {
         }
     }
 
-    #[test]
-    fn returns_a_decision() {
+    #[tokio::test]
+    async fn returns_a_decision() {
         let engine = DecisionEngine::new(Arc::new(ApproveAllDecider::default()));
-        let resp = engine.decide_idempotent(&req("k1")).unwrap();
+        let resp = engine.decide_idempotent(&req("k1")).await.unwrap();
         assert_eq!(resp.action, "APPROVE");
         assert_eq!(resp.transaction_id, "txn-1");
     }
 
-    #[test]
-    fn idempotent_replay_returns_original_without_redeciding() {
+    #[tokio::test]
+    async fn idempotent_replay_returns_original_without_redeciding() {
         let decider = Arc::new(ApproveAllDecider::default());
         let engine = DecisionEngine::new(decider.clone());
-        let first = engine.decide_idempotent(&req("k1")).unwrap();
-        let second = engine.decide_idempotent(&req("k1")).unwrap();
+        let first = engine.decide_idempotent(&req("k1")).await.unwrap();
+        let second = engine.decide_idempotent(&req("k1")).await.unwrap();
         assert_eq!(first, second);
         assert_eq!(
             decider.calls(),
@@ -128,19 +133,19 @@ mod tests {
         );
     }
 
-    #[test]
-    fn distinct_keys_each_decide() {
+    #[tokio::test]
+    async fn distinct_keys_each_decide() {
         let decider = Arc::new(ApproveAllDecider::default());
         let engine = DecisionEngine::new(decider.clone());
-        engine.decide_idempotent(&req("k1")).unwrap();
-        engine.decide_idempotent(&req("k2")).unwrap();
+        engine.decide_idempotent(&req("k1")).await.unwrap();
+        engine.decide_idempotent(&req("k2")).await.unwrap();
         assert_eq!(decider.calls(), 2);
     }
 
-    #[test]
-    fn empty_idempotency_key_is_rejected() {
+    #[tokio::test]
+    async fn empty_idempotency_key_is_rejected() {
         let engine = DecisionEngine::new(Arc::new(ApproveAllDecider::default()));
-        let err = engine.decide_idempotent(&req("")).unwrap_err();
+        let err = engine.decide_idempotent(&req("")).await.unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
     }
 
@@ -157,5 +162,43 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(decider.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn engine_drives_the_model_backed_decider() {
+        use crate::decision::CostMatrix;
+        use crate::FeatureAwareDecider;
+        use features::OnlineFeatures;
+        use rules::{RulesConfig, RulesEngine};
+        use std::time::Duration;
+        use stream::InMemoryFeatureStore;
+
+        struct HighScorer;
+        impl model::Scorer for HighScorer {
+            fn score(&self, _features: &[f32]) -> f32 {
+                0.97
+            }
+        }
+
+        let online = OnlineFeatures::new(
+            Arc::new(InMemoryFeatureStore::default()),
+            Duration::from_millis(50),
+        );
+        let registry = Arc::new(model::ModelRegistry::new("champ", Box::new(HighScorer)));
+        let decider = FeatureAwareDecider::new(
+            Arc::new(RulesEngine::from_config(RulesConfig::default())),
+            online,
+        )
+        .with_model(registry, CostMatrix::default());
+        let engine = DecisionEngine::new(Arc::new(decider));
+
+        // The model-backed path runs through the gRPC engine: a high score declines, and the
+        // model version is stamped on the verdict.
+        let resp = engine.decide_idempotent(&req("k1")).await.unwrap();
+        assert_eq!(resp.action, "DECLINE");
+        assert_eq!(resp.model_version, "champ");
+        // Idempotent replay returns the identical verdict.
+        let again = engine.decide_idempotent(&req("k1")).await.unwrap();
+        assert_eq!(resp, again);
     }
 }
