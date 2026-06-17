@@ -74,7 +74,14 @@ pub fn resolve(records: &[Record]) -> Vec<Vec<String>> {
             if !kind.is_strong() {
                 continue;
             }
-            let block = (kind.key(), normalise(kind, value));
+            let normalised = normalise(kind, value);
+            // An empty/blank normalised identifier (e.g. a phone with no digits, or a blank email)
+            // is not an identity — blocking on it would fuse every record that happens to carry a
+            // missing strong field into one bogus cluster. Skip it.
+            if normalised.is_empty() {
+                continue;
+            }
+            let block = (kind.key(), normalised);
             match first_seen.get(&block) {
                 Some(&j) => {
                     uf.union(i, j);
@@ -118,6 +125,27 @@ mod tests {
             .clone();
         c.sort();
         c
+    }
+
+    #[test]
+    fn blank_strong_identifiers_do_not_merge_distinct_records() {
+        // Two unrelated people each with a missing/blank strong field must NOT be fused.
+        let records = [
+            rec(
+                "a",
+                &[
+                    (IdentifierKind::Phone, "N/A"),
+                    (IdentifierKind::Email, "  "),
+                ],
+            ),
+            rec(
+                "b",
+                &[(IdentifierKind::Phone, ""), (IdentifierKind::Email, "")],
+            ),
+        ];
+        let clusters = resolve(&records);
+        assert_eq!(cluster_of(&clusters, "a"), vec!["a".to_string()]);
+        assert_eq!(cluster_of(&clusters, "b"), vec!["b".to_string()]);
     }
 
     #[test]

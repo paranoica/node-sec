@@ -50,7 +50,7 @@ impl TransactionGraph {
         let b = self.node(to);
         if let Some(edge) = self.graph.find_edge(a, b) {
             let weight = &mut self.graph[edge];
-            weight.count += 1;
+            weight.count = weight.count.saturating_add(1);
             weight.total_minor = weight.total_minor.saturating_add(amount_minor);
             weight.last_seen = weight.last_seen.max(at);
         } else {
