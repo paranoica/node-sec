@@ -139,7 +139,7 @@
     - _accept:_ WHEN a case is dispositioned to file THEN a SAR SHALL be generated with a filing deadline and a continuing-activity follow-up SHALL be scheduled, and the subject SHALL NOT be notified
     - _accept:_ WHEN cash movement exceeds the CTR threshold THEN a CTR SHALL be produced independently of any suspicion finding
     - _verify (test):_ cargo test -p compliance sar
-- [ ] **T054** Feedback loop: labels → offline store → retraining trigger ← T052, T036
+- [x] **T054** Feedback loop: labels → offline store → retraining trigger ← T052, T036
     - _accept:_ WHEN an investigator dispositions a case THEN an investigator label SHALL be written to the offline store and feed the retraining dataset
     - _accept:_ WHEN blocked transactions accumulate THEN reject inference SHALL estimate their outcomes so training is not biased by the engine's own declines
     - _verify (test):_ pytest ml/tests/test_feedback.py

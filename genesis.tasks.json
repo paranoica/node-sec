@@ -971,7 +971,7 @@
       "id": "T054",
       "title": "Feedback loop: labels → offline store → retraining trigger",
       "sprint": "S5-compliance",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "T052",
         "T036"
