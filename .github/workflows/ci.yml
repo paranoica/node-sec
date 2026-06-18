@@ -12,6 +12,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: "clippy, rustfmt"
+      # engine/api build.rs compile proto/decision.proto via prost-build, which needs protoc
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cargo fmt --all -- --check                  # format gate
       - run: cargo clippy --all-targets -- -D warnings   # lint
       - run: cargo test --all                            # test
